@@ -21,6 +21,7 @@ CATEGORIES = [
     "Matériel de chimie",
     "Verrerie",
     "Produits chimiques",
+    "SVT",
     "Sécurité",
     "Matériel informatique",
 ]
