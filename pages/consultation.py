@@ -1,6 +1,7 @@
 import streamlit as st
 import database as db
 from common import verifier_config
+from streamlit_back_camera_input import back_camera_input
 
 verifier_config()
 
@@ -103,7 +104,8 @@ if "edit_article_id" in st.session_state:
                     pictos = st.multiselect("Pictogrammes de danger", db.PICTOGRAMMES_GHS, default=[p for p in deja if p in db.PICTOGRAMMES_GHS])
                     pictos_str = ", ".join(pictos) if pictos else None
 
-            nouvelle_photo = st.camera_input("Reprendre une photo (optionnel)")
+            st.caption("La caméra arrière s'ouvre par défaut — touche l'image pour prendre la photo.")
+            nouvelle_photo = back_camera_input(key=f"cam_edit_{article['id']}")
 
             c3, c4 = st.columns(2)
             enregistrer = c3.form_submit_button("💾 Enregistrer", use_container_width=True)
@@ -122,7 +124,7 @@ if "edit_article_id" in st.session_state:
                 import time
                 photo_filename = f"article_{article['id']}_{int(time.time())}.jpg"
                 with st.spinner("Envoi de la photo..."):
-                    photo_url = db.upload_photo(nouvelle_photo.getbuffer().tobytes(), photo_filename)
+                    photo_url = db.upload_photo(nouvelle_photo.getvalue(), photo_filename)
                 maj["photo_path"] = photo_url
             db.modifier_article(article["id"], **maj)
             del st.session_state["edit_article_id"]
