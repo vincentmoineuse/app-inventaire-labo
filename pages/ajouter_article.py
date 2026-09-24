@@ -2,7 +2,6 @@ import streamlit as st
 import time
 import database as db
 from common import verifier_config
-from streamlit_back_camera_input import back_camera_input
 
 verifier_config()
 
@@ -34,9 +33,11 @@ with st.form("ajout_form", clear_on_submit=True):
             pictos_str = ", ".join(pictos) if pictos else None
 
     st.markdown("**Photo de l'article ou de l'étiquette**")
-    st.caption("La caméra arrière s'ouvre par défaut — touche l'image pour prendre la photo.")
-    photo_cam = back_camera_input(key="cam_ajout")
-    photo_upload = st.file_uploader("...ou importer une photo existante", type=["jpg", "jpeg", "png"])
+    st.caption(
+        "Sur mobile/tablette, ce bouton propose « Prendre une photo » (ou « Appareil photo ») "
+        "en plus de la galerie — cela ouvre l'appareil photo natif, avec un vrai bouton de capture."
+    )
+    photo_upload = st.file_uploader("📷 Prendre ou importer une photo", type=["jpg", "jpeg", "png"])
 
     submit = st.form_submit_button("✅ Ajouter à l'inventaire", use_container_width=True)
 
@@ -45,12 +46,11 @@ if submit:
         st.error("Merci de renseigner au minimum le **nom** et la **salle**.")
     else:
         photo_path = None
-        source_photo = photo_cam or photo_upload
-        if source_photo is not None:
+        if photo_upload is not None:
             filename = f"article_{int(time.time())}_{nom[:20].replace(' ', '_')}.jpg"
             filename = "".join(c for c in filename if c.isalnum() or c in "._-")
             with st.spinner("Envoi de la photo..."):
-                photo_path = db.upload_photo(source_photo.getvalue(), filename)
+                photo_path = db.upload_photo(photo_upload.getvalue(), filename)
 
         db.ajouter_article(
             nom=nom, categorie=categorie, quantite=int(quantite), unite=unite,

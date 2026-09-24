@@ -1,7 +1,6 @@
 import streamlit as st
 import database as db
 from common import verifier_config
-from streamlit_back_camera_input import back_camera_input
 
 verifier_config()
 
@@ -104,8 +103,12 @@ if "edit_article_id" in st.session_state:
                     pictos = st.multiselect("Pictogrammes de danger", db.PICTOGRAMMES_GHS, default=[p for p in deja if p in db.PICTOGRAMMES_GHS])
                     pictos_str = ", ".join(pictos) if pictos else None
 
-            st.caption("La caméra arrière s'ouvre par défaut — touche l'image pour prendre la photo.")
-            nouvelle_photo = back_camera_input(key=f"cam_edit_{article['id']}")
+            st.caption(
+                "Sur mobile/tablette, ce bouton propose « Prendre une photo » en plus de la "
+                "galerie — cela ouvre l'appareil photo natif, avec un vrai bouton de capture."
+            )
+            nouvelle_photo = st.file_uploader("📷 Reprendre ou importer une photo (optionnel)",
+                                               type=["jpg", "jpeg", "png"], key=f"photo_edit_{article['id']}")
 
             c3, c4 = st.columns(2)
             enregistrer = c3.form_submit_button("💾 Enregistrer", use_container_width=True)
