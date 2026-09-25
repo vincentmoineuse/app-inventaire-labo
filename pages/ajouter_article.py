@@ -9,6 +9,32 @@ st.title("➕ Ajouter un article à l'inventaire")
 
 categorie = st.selectbox("Catégorie", db.CATEGORIES, key="add_categorie")
 
+if "photo_uploader_key" not in st.session_state:
+    st.session_state.photo_uploader_key = 0
+
+st.markdown("**Photo de l'article ou de l'étiquette**")
+st.markdown("""
+<style>
+[data-testid="stFileUploaderDropzoneInstructions"] { display: none !important; }
+[data-testid="stFileUploaderDropzone"] [data-testid="stIconMaterial"] { display: none !important; }
+[data-testid="stFileUploaderDropzone"] button p { font-size: 0; }
+[data-testid="stFileUploaderDropzone"] button p::after {
+    content: "📷 Prendre ou importer une photo";
+    font-size: 1rem;
+    font-weight: 600;
+}
+[data-testid="stFileUploaderDropzone"] { justify-content: center !important; padding: 0.5rem !important; }
+[data-testid="stFileUploaderDropzone"] button { width: 100%; padding: 0.75rem !important; }
+</style>
+""", unsafe_allow_html=True)
+photo_upload = st.file_uploader(
+    "📷 Prendre ou importer une photo", type=["jpg", "jpeg", "png"],
+    key=f"photo_upload_{st.session_state.photo_uploader_key}",
+    label_visibility="collapsed",
+)
+if photo_upload is not None:
+    st.image(photo_upload, width=150, caption="Photo sélectionnée")
+
 with st.form("ajout_form", clear_on_submit=True):
     c1, c2 = st.columns(2)
     with c1:
@@ -32,13 +58,6 @@ with st.form("ajout_form", clear_on_submit=True):
             pictos = st.multiselect("Pictogrammes de danger (SGH)", db.PICTOGRAMMES_GHS)
             pictos_str = ", ".join(pictos) if pictos else None
 
-    st.markdown("**Photo de l'article ou de l'étiquette**")
-    st.caption(
-        "Sur mobile/tablette, ce bouton propose « Prendre une photo » (ou « Appareil photo ») "
-        "en plus de la galerie — cela ouvre l'appareil photo natif, avec un vrai bouton de capture."
-    )
-    photo_upload = st.file_uploader("📷 Prendre ou importer une photo", type=["jpg", "jpeg", "png"])
-
     submit = st.form_submit_button("✅ Ajouter à l'inventaire", use_container_width=True)
 
 if submit:
@@ -58,8 +77,14 @@ if submit:
             numero_cas=numero_cas, pictogrammes=pictos_str, date_peremption=date_perempt,
             notes=notes or None,
         )
-        st.success(f"✅ « {nom} » ajouté à la catégorie {categorie}.")
-        st.balloons()
+        st.session_state.photo_uploader_key += 1
+        st.session_state.article_ajoute = f"{nom} ({categorie})"
+        st.rerun()
+
+if st.session_state.get("article_ajoute"):
+    st.success(f"✅ « {st.session_state.article_ajoute} » ajouté à l'inventaire.")
+    st.balloons()
+    del st.session_state["article_ajoute"]
 
 st.divider()
 st.caption("Astuce : pour pointer/mettre à jour les quantités d'articles déjà existants, utilise plutôt la page **🔍 Session Inventaire**.")

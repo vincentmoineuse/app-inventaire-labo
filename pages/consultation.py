@@ -103,12 +103,23 @@ if "edit_article_id" in st.session_state:
                     pictos = st.multiselect("Pictogrammes de danger", db.PICTOGRAMMES_GHS, default=[p for p in deja if p in db.PICTOGRAMMES_GHS])
                     pictos_str = ", ".join(pictos) if pictos else None
 
-            st.caption(
-                "Sur mobile/tablette, ce bouton propose « Prendre une photo » en plus de la "
-                "galerie — cela ouvre l'appareil photo natif, avec un vrai bouton de capture."
-            )
+            st.markdown("""
+            <style>
+            [data-testid="stFileUploaderDropzoneInstructions"] { display: none !important; }
+            [data-testid="stFileUploaderDropzone"] [data-testid="stIconMaterial"] { display: none !important; }
+            [data-testid="stFileUploaderDropzone"] button p { font-size: 0; }
+            [data-testid="stFileUploaderDropzone"] button p::after {
+                content: "📷 Reprendre ou importer une photo";
+                font-size: 1rem;
+                font-weight: 600;
+            }
+            [data-testid="stFileUploaderDropzone"] { justify-content: center !important; padding: 0.5rem !important; }
+            [data-testid="stFileUploaderDropzone"] button { width: 100%; padding: 0.75rem !important; }
+            </style>
+            """, unsafe_allow_html=True)
             nouvelle_photo = st.file_uploader("📷 Reprendre ou importer une photo (optionnel)",
-                                               type=["jpg", "jpeg", "png"], key=f"photo_edit_{article['id']}")
+                                               type=["jpg", "jpeg", "png"], key=f"photo_edit_{article['id']}",
+                                               label_visibility="collapsed")
 
             c3, c4 = st.columns(2)
             enregistrer = c3.form_submit_button("💾 Enregistrer", use_container_width=True)
