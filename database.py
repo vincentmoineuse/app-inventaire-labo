@@ -42,6 +42,7 @@ PICTOGRAMMES_GHS = [
 
 CATEGORIE_CHIMIE = "Produits chimiques"
 PHOTOS_BUCKET = "photos"
+DOCUMENTS_BUCKET = "documents"
 
 
 class ConfigurationManquante(Exception):
@@ -101,16 +102,31 @@ def upload_photo(file_bytes, filename, mimetype="image/jpeg"):
     return bucket.get_public_url(filename)
 
 
+# ---------- DOCUMENTS PDF (FDS, notices — Supabase Storage) ----------
+
+def upload_document(file_bytes, filename, sous_dossier, mimetype="application/pdf"):
+    """Envoie un PDF (FDS ou notice) dans le bucket documents et renvoie son URL publique.
+    sous_dossier : 'fds' ou 'notices', pour garder les fichiers organisés dans le bucket."""
+    base = nom_fichier_sur(filename.rsplit(".", 1)[0], "pdf")
+    chemin = f"{sous_dossier}/{int(datetime.now().timestamp())}_{base}"
+    sb = _get_client()
+    bucket = sb.storage.from_(DOCUMENTS_BUCKET)
+    bucket.upload(chemin, bytes(file_bytes), {"content-type": mimetype, "upsert": "true"})
+    return bucket.get_public_url(chemin)
+
+
 # ---------- ARTICLES ----------
 
 def ajouter_article(nom, categorie, quantite, unite, salle, armoire, photo_path=None,
-                     numero_cas=None, pictogrammes=None, date_peremption=None, notes=None):
+                     numero_cas=None, pictogrammes=None, date_peremption=None, notes=None,
+                     fds_path=None, notice_path=None):
     sb = _get_client()
     row = {
         "nom": nom, "categorie": categorie, "quantite": quantite, "unite": unite,
         "salle": salle, "armoire": armoire, "photo_path": photo_path,
         "numero_cas": numero_cas, "pictogrammes": pictogrammes,
         "date_peremption": date_peremption, "notes": notes,
+        "fds_path": fds_path, "notice_path": notice_path,
         "date_ajout": datetime.now().isoformat(), "actif": True,
     }
     res = sb.table("articles").insert(row).execute()
