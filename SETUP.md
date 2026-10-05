@@ -94,7 +94,29 @@ Tu peux vérifier que les 3 tables sont bien créées dans **Table Editor** (men
    l'application sans configuration supplémentaire).
 4. Clique **Create bucket**.
 
-## 5. Mettre le code sur GitHub
+## 5. FDS et notices (PDF)
+
+Si tu ajoutes cette fonctionnalité à une installation déjà existante, deux choses à faire en
+plus (sinon, si c'est ta toute première installation, fais-les simplement à la suite des
+étapes précédentes) :
+
+**a) Ajouter les colonnes nécessaires** — dans **SQL Editor**, exécute :
+
+```sql
+alter table articles add column if not exists fds_path text;
+alter table articles add column if not exists notice_path text;
+notify pgrst, 'reload schema';
+```
+
+**b) Créer un second bucket de stockage, pour les PDF** — comme à l'étape 4, dans **Storage**
+→ **New bucket**, nomme-le exactement `documents`, coche **Public bucket**, puis
+**Create bucket**.
+
+Tu peux ensuite attacher les FDS et notices depuis la page **📄 Documents** de l'application
+(ou directement en ajoutant/modifiant un article) — y compris pour importer les PDF que tu
+as déjà sur ton ordinateur.
+
+## 6. Mettre le code sur GitHub
 
 1. Crée un nouveau dépôt GitHub (public ou privé, les deux fonctionnent avec Streamlit Cloud).
 2. Pousse tous les fichiers de ce projet **sauf** `.streamlit/secrets.toml` (qui n'existe pas
@@ -110,7 +132,7 @@ git remote add origin https://github.com/TON-COMPTE/inventaire-labo.git
 git push -u origin main
 ```
 
-## 6. Déployer sur Streamlit Community Cloud
+## 7. Déployer sur Streamlit Community Cloud
 
 1. Va sur [share.streamlit.io](https://share.streamlit.io) et connecte-toi avec ton compte
    GitHub.
@@ -124,7 +146,7 @@ git push -u origin main
    `https://ton-appli.streamlit.app` — utilisable depuis n'importe quel navigateur,
    y compris sur smartphone (tu peux l'ajouter à l'écran d'accueil comme un raccourci).
 
-## 7. Mises à jour futures
+## 8. Mises à jour futures
 
 Toute modification poussée sur la branche `main` de GitHub redéploie automatiquement
 l'application sur Streamlit Cloud en quelques dizaines de secondes.
