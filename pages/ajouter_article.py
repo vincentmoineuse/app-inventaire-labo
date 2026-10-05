@@ -47,6 +47,7 @@ with st.form("ajout_form", clear_on_submit=True):
         notes = st.text_area("Notes (optionnel)")
 
     numero_cas = pictos_str = date_perempt = None
+    fds_upload = None
     if categorie == db.CATEGORIE_CHIMIE:
         st.markdown("**Champs sécurité (produit chimique)**")
         cc1, cc2 = st.columns(2)
@@ -57,6 +58,9 @@ with st.form("ajout_form", clear_on_submit=True):
         with cc2:
             pictos = st.multiselect("Pictogrammes de danger (SGH)", db.PICTOGRAMMES_GHS)
             pictos_str = ", ".join(pictos) if pictos else None
+        fds_upload = st.file_uploader("📄 FDS (fiche de données de sécurité, PDF)", type=["pdf"])
+
+    notice_upload = st.file_uploader("📄 Notice de l'article (PDF, optionnel)", type=["pdf"])
 
     submit = st.form_submit_button("✅ Ajouter à l'inventaire", use_container_width=True)
 
@@ -71,11 +75,21 @@ if submit:
             with st.spinner("Envoi de la photo..."):
                 photo_path = db.upload_photo(photo_upload.getvalue(), filename)
 
+        fds_path = None
+        if fds_upload is not None:
+            with st.spinner("Envoi de la FDS..."):
+                fds_path = db.upload_document(fds_upload.getvalue(), f"{nom}.pdf", "fds")
+
+        notice_path = None
+        if notice_upload is not None:
+            with st.spinner("Envoi de la notice..."):
+                notice_path = db.upload_document(notice_upload.getvalue(), f"{nom}.pdf", "notices")
+
         db.ajouter_article(
             nom=nom, categorie=categorie, quantite=int(quantite), unite=unite,
             salle=salle, armoire=armoire, photo_path=photo_path,
             numero_cas=numero_cas, pictogrammes=pictos_str, date_peremption=date_perempt,
-            notes=notes or None,
+            notes=notes or None, fds_path=fds_path, notice_path=notice_path,
         )
         st.session_state.photo_uploader_key += 1
         st.session_state.article_ajoute = f"{nom} ({categorie})"

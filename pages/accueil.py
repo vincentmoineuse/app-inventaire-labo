@@ -59,5 +59,6 @@ Utilise le menu à gauche :
 - **📋 Consultation** — parcourir, rechercher et filtrer l'inventaire
 - **➕ Ajouter un article** — ajouter un nouvel article (avec photo)
 - **🔍 Session Inventaire** — faire le point sur le matériel existant, salle par salle
+- **📄 Documents (FDS & notices)** — consulter et attacher les fiches de sécurité et notices
 - **💾 Données & Export** — accès direct au tableau de bord Supabase, export CSV, historique des sessions
 """)

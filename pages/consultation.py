@@ -55,6 +55,11 @@ else:
                             st.caption(" • ".join(infos))
                         if a["pictogrammes"]:
                             st.caption("⚠️ " + a["pictogrammes"])
+                    docs = st.columns(2)
+                    if a.get("fds_path"):
+                        docs[0].link_button("📄 FDS", a["fds_path"], use_container_width=True)
+                    if a.get("notice_path"):
+                        docs[1].link_button("📄 Notice", a["notice_path"], use_container_width=True)
                 with cols[2]:
                     st.write(f"Qté : **{a['quantite']} {a['unite'] or ''}**")
                 with cols[3]:
@@ -84,6 +89,7 @@ if "edit_article_id" in st.session_state:
                 notes = st.text_area("Notes", value=article["notes"] or "")
 
             numero_cas, pictos_str, date_perempt = article["numero_cas"], article["pictogrammes"], article["date_peremption"]
+            fds_upload = None
             if categorie_e == db.CATEGORIE_CHIMIE:
                 st.markdown("**Champs sécurité (produit chimique)**")
                 cc1, cc2 = st.columns(2)
@@ -102,6 +108,15 @@ if "edit_article_id" in st.session_state:
                     deja = (article["pictogrammes"] or "").split(", ") if article["pictogrammes"] else []
                     pictos = st.multiselect("Pictogrammes de danger", db.PICTOGRAMMES_GHS, default=[p for p in deja if p in db.PICTOGRAMMES_GHS])
                     pictos_str = ", ".join(pictos) if pictos else None
+                if article.get("fds_path"):
+                    st.caption(f"FDS actuelle : [voir le PDF]({article['fds_path']})")
+                fds_upload = st.file_uploader("📄 Remplacer/ajouter la FDS (PDF)", type=["pdf"],
+                                               key=f"fds_edit_{article['id']}")
+
+            if article.get("notice_path"):
+                st.caption(f"Notice actuelle : [voir le PDF]({article['notice_path']})")
+            notice_upload = st.file_uploader("📄 Remplacer/ajouter la notice (PDF)", type=["pdf"],
+                                              key=f"notice_edit_{article['id']}")
 
             st.markdown("""
             <style>
@@ -140,6 +155,12 @@ if "edit_article_id" in st.session_state:
                 with st.spinner("Envoi de la photo..."):
                     photo_url = db.upload_photo(nouvelle_photo.getvalue(), photo_filename)
                 maj["photo_path"] = photo_url
+            if fds_upload is not None:
+                with st.spinner("Envoi de la FDS..."):
+                    maj["fds_path"] = db.upload_document(fds_upload.getvalue(), f"{nom}.pdf", "fds")
+            if notice_upload is not None:
+                with st.spinner("Envoi de la notice..."):
+                    maj["notice_path"] = db.upload_document(notice_upload.getvalue(), f"{nom}.pdf", "notices")
             db.modifier_article(article["id"], **maj)
             del st.session_state["edit_article_id"]
             st.success("Article mis à jour.")
