@@ -26,6 +26,7 @@ CATEGORIES = [
     "SVT",
     "Sécurité",
     "Matériel informatique",
+    "Autres",
 ]
 
 PICTOGRAMMES_GHS = [
