@@ -43,3 +43,22 @@ def html_pictogrammes(pictogrammes, taille=48):
         imgs.append(f'<img src="data:image/svg+xml;base64,{data}" width="{taille}" height="{taille}" '
                     f'title="{code} - {LIBELLES[code]}" alt="{code}" style="margin-right:4px;">')
     return "".join(imgs)
+
+
+def codes_pictogrammes(pictogrammes):
+    """Extrait la liste des codes GHS0x (sans doublon) d'une chaîne « GHS02 - Inflammable, GHS05 - Corrosif »."""
+    codes = []
+    for morceau in str(pictogrammes or "").split(","):
+        code = morceau.strip()[:5]
+        if code in _SYMBOLES and code not in codes:
+            codes.append(code)
+    return codes
+
+
+def afficher_pictogrammes(pictogrammes, taille=48):
+    """Affiche les pictogrammes avec st.image (méthode native, valable sur toutes les versions)."""
+    import streamlit as st
+    codes = codes_pictogrammes(pictogrammes)
+    if not codes:
+        return
+    st.image([svg_pictogramme(c) for c in codes], width=taille)
