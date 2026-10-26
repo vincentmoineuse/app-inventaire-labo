@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import database as db
+from pictos import afficher_pictogrammes
 from common import verifier_config
 
 verifier_config()
@@ -28,7 +29,7 @@ with c1:
              for r in stats["par_categorie"]]
         )
         st.bar_chart(df.set_index("Catégorie")["Nombre d'articles"])
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width="stretch", hide_index=True)
     else:
         st.info("Aucun article enregistré pour le moment. Rends-toi dans **➕ Ajouter un article** pour commencer.")
 
@@ -40,6 +41,8 @@ with c2:
             urgence = "🔴" if jours < 0 else ("🟠" if jours <= 14 else "🟡")
             statut = "**PÉRIMÉ**" if jours < 0 else f"{jours} j restants"
             st.markdown(f"{urgence} **{a['nom']}** — {a['date_peremption']} ({statut})")
+            if a.get("pictogrammes"):
+                afficher_pictogrammes(a["pictogrammes"], taille=32)
     else:
         st.success("Aucune péremption proche 👍")
 

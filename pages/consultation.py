@@ -1,5 +1,6 @@
 import streamlit as st
 import database as db
+from pictos import afficher_pictogrammes
 from common import verifier_config
 
 verifier_config()
@@ -54,12 +55,12 @@ else:
                         if infos:
                             st.caption(" • ".join(infos))
                         if a["pictogrammes"]:
-                            st.caption("⚠️ " + a["pictogrammes"])
+                            afficher_pictogrammes(a["pictogrammes"], taille=48)
                     docs = st.columns(2)
                     if a.get("fds_path"):
-                        docs[0].link_button("📄 FDS", a["fds_path"], use_container_width=True)
+                        docs[0].link_button("📄 FDS", a["fds_path"], width="stretch")
                     if a.get("notice_path"):
-                        docs[1].link_button("📄 Notice", a["notice_path"], use_container_width=True)
+                        docs[1].link_button("📄 Notice", a["notice_path"], width="stretch")
                 with cols[2]:
                     st.write(f"Qté : **{a['quantite']} {a['unite'] or ''}**")
                 with cols[3]:
@@ -137,9 +138,9 @@ if "edit_article_id" in st.session_state:
                                                label_visibility="collapsed")
 
             c3, c4 = st.columns(2)
-            enregistrer = c3.form_submit_button("💾 Enregistrer", use_container_width=True)
-            annuler = c4.form_submit_button("Annuler", use_container_width=True)
-            supprimer = st.form_submit_button("🗑️ Supprimer cet article", use_container_width=True)
+            enregistrer = c3.form_submit_button("💾 Enregistrer", width="stretch")
+            annuler = c4.form_submit_button("Annuler", width="stretch")
+            supprimer = st.form_submit_button("🗑️ Supprimer cet article", width="stretch")
 
         if enregistrer:
             maj = dict(
