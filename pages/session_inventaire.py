@@ -74,10 +74,16 @@ else:
                 if a.get("pictogrammes"):
                     afficher_pictogrammes(a["pictogrammes"], taille=36)
             with cols[2]:
-                nouvelle_qte = st.number_input(
-                    "Quantité constatée", min_value=0, value=a["quantite"],
-                    key=f"qte_{a['id']}"
-                )
+                if a["categorie"] == db.CATEGORIE_CHIMIE:
+                    nouvelle_qte = st.number_input(
+                        f"Quantité constatée ({a['unite'] or 'unité(s)'})", min_value=0.0,
+                        value=float(a["quantite"] or 0), step=0.1, format="%g", key=f"qte_{a['id']}"
+                    )
+                else:
+                    nouvelle_qte = st.number_input(
+                        "Quantité constatée", min_value=0, value=int(round(float(a["quantite"] or 0))),
+                        step=1, key=f"qte_{a['id']}"
+                    )
                 nouvelle_armoire = st.text_input(
                     "Armoire / emplacement", value=a["armoire"] or "", key=f"arm_{a['id']}"
                 )
@@ -85,7 +91,8 @@ else:
                 st.write("")
                 st.write("")
                 if st.button("✔️ Valider ce pointage", key=f"valider_{a['id']}", width="stretch"):
-                    db.pointer_article(session["id"], a["id"], a["quantite"], int(nouvelle_qte))
+                    db.pointer_article(session["id"], a["id"], a["quantite"],
+                                      float(nouvelle_qte) if a["categorie"] == db.CATEGORIE_CHIMIE else int(nouvelle_qte))
                     if nouvelle_armoire.strip() != (a["armoire"] or ""):
                         db.modifier_article(a["id"], armoire=nouvelle_armoire.strip())
                     st.rerun()
@@ -93,4 +100,4 @@ else:
 if faits:
     with st.expander(f"✅ Articles déjà pointés dans cette session ({len(faits)})"):
         for a in faits:
-            st.write(f"- **{a['nom']}** — quantité pointée : {a['quantite']} {a['unite'] or ''}")
+            st.write(f"- **{a['nom']}** — quantité pointée : {db.formater_quantite(a['quantite'])} {a['unite'] or ''}")
