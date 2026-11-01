@@ -42,6 +42,17 @@ PICTOGRAMMES_GHS = [
 ]
 
 CATEGORIE_CHIMIE = "Produits chimiques"
+UNITES_CHIMIE = ["L", "kg", "mL", "g"]
+
+
+def formater_quantite(valeur):
+    """2.0 -> '2' ; 0.5 -> '0,5' ; 2.250 -> '2,25' (affichage à la française)."""
+    try:
+        v = float(valeur or 0)
+    except (TypeError, ValueError):
+        return str(valeur)
+    texte = f"{v:.3f}".rstrip("0").rstrip(".")
+    return texte.replace(".", ",")
 PHOTOS_BUCKET = "photos"
 DOCUMENTS_BUCKET = "documents"
 
