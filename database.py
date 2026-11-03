@@ -294,3 +294,178 @@ def resume_session(session_id):
         resultat.append({**p, "nom": a.get("nom", "?"), "categorie": a.get("categorie", "?")})
     resultat.sort(key=lambda r: (r["categorie"], r["nom"]))
     return resultat
+
+
+# ---------- TP (travaux pratiques) ----------
+
+DISCIPLINES_TP = ["Physique", "Chimie", "SVT", "Autre"]
+NIVEAUX_TP = ["Collège", "Seconde", "Première", "Terminale", "Post-bac / BTS", "Autre"]
+
+
+@st.cache_data(ttl=15, show_spinner=False)
+def _tous_les_tps():
+    return _get_client().table("tps").select("*").execute().data
+
+
+@st.cache_data(ttl=15, show_spinner=False)
+def _tout_le_materiel_tp():
+    return _get_client().table("tp_materiel").select("*").execute().data
+
+
+def obtenir_tps(discipline=None, niveau=None, recherche=None):
+    resultat = []
+    for t in _tous_les_tps():
+        if not t.get("actif", True):
+            continue
+        if discipline and discipline != "Toutes" and t.get("discipline") != discipline:
+            continue
+        if niveau and niveau != "Tous" and t.get("niveau") != niveau:
+            continue
+        if recherche and recherche.lower() not in str(t.get("titre", "")).lower():
+            continue
+        resultat.append(t)
+    resultat.sort(key=lambda t: (t.get("discipline") or "", t.get("titre") or ""))
+    return resultat
+
+
+def ajouter_tp(titre, discipline=None, niveau=None, date_prevue=None, notes=None):
+    row = {"titre": titre, "discipline": discipline, "niveau": niveau,
+           "date_prevue": date_prevue, "notes": notes, "actif": True}
+    res = _get_client().table("tps").insert(row).execute()
+    _clear_cache()
+    return res.data[0]["id"] if res.data else None
+
+
+def modifier_tp(tp_id, **kwargs):
+    if kwargs:
+        _get_client().table("tps").update(kwargs).eq("id", tp_id).execute()
+        _clear_cache()
+
+
+def supprimer_tp(tp_id):
+    modifier_tp(tp_id, actif=False)
+
+
+def obtenir_materiel_tp(tp_id):
+    lignes = [l for l in _tout_le_materiel_tp() if str(l["tp_id"]) == str(tp_id)]
+    lignes.sort(key=lambda l: l["id"])
+    return lignes
+
+
+def ajouter_materiel_tp(tp_id, quantite, unite=None, article_id=None, libelle=None):
+    row = {"tp_id": tp_id, "article_id": article_id, "libelle": libelle,
+           "quantite": quantite, "unite": unite}
+    _get_client().table("tp_materiel").insert(row).execute()
+    _clear_cache()
+
+
+def supprimer_materiel_tp(ligne_id):
+    _get_client().table("tp_materiel").delete().eq("id", ligne_id).execute()
+    _clear_cache()
+
+
+def _meme_unite(u1, u2):
+    return (u1 or "").strip().lower() == (u2 or "").strip().lower()
+
+
+def disponibilite_ligne(ligne):
+    """Compare le besoin d'une ligne de TP au stock de l'inventaire.
+    Renvoie (etat, stock, manque) ; etat ∈ 'ok', 'insuffisant', 'verifier', 'hors_inventaire'."""
+    article = obtenir_article(ligne["article_id"]) if ligne.get("article_id") else None
+    if not article or not article.get("actif", True):
+        return "hors_inventaire", None, float(ligne["quantite"] or 0)
+    stock = float(article["quantite"] or 0)
+    besoin = float(ligne["quantite"] or 0)
+    if not _meme_unite(article.get("unite"), ligne.get("unite")):
+        return "verifier", stock, 0.0
+    if stock >= besoin:
+        return "ok", stock, 0.0
+    return "insuffisant", stock, besoin - stock
+
+
+# ---------- COMMANDES ----------
+
+STATUTS_COMMANDE = ["À commander", "Commandée", "Reçue", "Annulée"]
+
+
+@st.cache_data(ttl=15, show_spinner=False)
+def _toutes_les_commandes():
+    return _get_client().table("commandes").select("*").execute().data
+
+
+@st.cache_data(ttl=15, show_spinner=False)
+def _toutes_les_lignes_commande():
+    return _get_client().table("commande_lignes").select("*").execute().data
+
+
+def obtenir_commandes(statuts=None):
+    """statuts : liste de statuts à garder (None = tous)."""
+    res = [c for c in _toutes_les_commandes()
+           if c.get("actif", True) and (not statuts or c.get("statut") in statuts)]
+    res.sort(key=lambda c: c["id"], reverse=True)
+    return res
+
+
+def creer_commande(titre, fournisseur=None, notes=None):
+    row = {"titre": titre, "fournisseur": fournisseur, "notes": notes,
+           "statut": "À commander", "actif": True}
+    res = _get_client().table("commandes").insert(row).execute()
+    _clear_cache()
+    return res.data[0]["id"] if res.data else None
+
+
+def modifier_commande(commande_id, **kwargs):
+    if kwargs:
+        _get_client().table("commandes").update(kwargs).eq("id", commande_id).execute()
+        _clear_cache()
+
+
+def supprimer_commande(commande_id):
+    modifier_commande(commande_id, actif=False)
+
+
+def obtenir_lignes_commande(commande_id):
+    lignes = [l for l in _toutes_les_lignes_commande() if str(l["commande_id"]) == str(commande_id)]
+    lignes.sort(key=lambda l: l["id"])
+    return lignes
+
+
+def ajouter_ligne_commande(commande_id, designation, quantite, unite=None, article_id=None,
+                            reference_fournisseur=None, prix_unitaire=None):
+    row = {"commande_id": commande_id, "article_id": article_id, "designation": designation,
+           "reference_fournisseur": reference_fournisseur, "quantite": quantite,
+           "unite": unite, "prix_unitaire": prix_unitaire, "recu": False}
+    _get_client().table("commande_lignes").insert(row).execute()
+    _clear_cache()
+
+
+def supprimer_ligne_commande(ligne_id):
+    _get_client().table("commande_lignes").delete().eq("id", ligne_id).execute()
+    _clear_cache()
+
+
+def total_commande(commande_id):
+    """Total estimé (lignes avec prix uniquement)."""
+    return sum(float(l["quantite"] or 0) * float(l["prix_unitaire"])
+               for l in obtenir_lignes_commande(commande_id) if l.get("prix_unitaire") is not None)
+
+
+def receptionner_commande(commande_id):
+    """Passe la commande à « Reçue » et ajoute au stock les quantités des lignes liées à un article
+    (uniquement si l'unité de la ligne est la même que celle de l'article).
+    Renvoie la liste des lignes qui n'ont pas pu être ajoutées automatiquement."""
+    non_ajoutees = []
+    for l in obtenir_lignes_commande(commande_id):
+        if l.get("recu"):
+            continue
+        article = obtenir_article(l["article_id"]) if l.get("article_id") else None
+        if article and _meme_unite(article.get("unite"), l.get("unite")):
+            nouveau = float(article["quantite"] or 0) + float(l["quantite"] or 0)
+            modifier_article(article["id"], quantite=nouveau)
+        elif article:
+            non_ajoutees.append(f"{l['designation']} (unité commandée « {l.get('unite') or '—'} » "
+                                f"≠ unité du stock « {article.get('unite') or '—'} »)")
+        _get_client().table("commande_lignes").update({"recu": True}).eq("id", l["id"]).execute()
+    modifier_commande(commande_id, statut="Reçue")
+    _clear_cache()
+    return non_ajoutees

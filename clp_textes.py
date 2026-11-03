@@ -1,0 +1,149 @@
+"""Libellés français des mentions de danger (H) et conseils de prudence (P) courants.
+
+Sert à pré-remplir les textes à partir des codes. À relire : la FDS officielle du
+fournisseur reste la référence, en particulier pour les P combinées et les cas
+particuliers.
+"""
+
+H_TEXTES = {
+    "H220": "Gaz extrêmement inflammable.",
+    "H221": "Gaz inflammable.",
+    "H222": "Aérosol extrêmement inflammable.",
+    "H223": "Aérosol inflammable.",
+    "H224": "Liquide et vapeurs extrêmement inflammables.",
+    "H225": "Liquide et vapeurs très inflammables.",
+    "H226": "Liquide et vapeurs inflammables.",
+    "H227": "Liquide combustible.",
+    "H228": "Matière solide inflammable.",
+    "H271": "Peut provoquer un incendie ou une explosion ; comburant puissant.",
+    "H272": "Peut aggraver un incendie ; comburant.",
+    "H290": "Peut être corrosif pour les métaux.",
+    "H300": "Mortel en cas d'ingestion.",
+    "H301": "Toxique en cas d'ingestion.",
+    "H302": "Nocif en cas d'ingestion.",
+    "H304": "Peut être mortel en cas d'ingestion et de pénétration dans les voies respiratoires.",
+    "H310": "Mortel par contact cutané.",
+    "H311": "Toxique par contact cutané.",
+    "H312": "Nocif par contact cutané.",
+    "H314": "Provoque de graves brûlures de la peau et de graves lésions des yeux.",
+    "H315": "Provoque une irritation cutanée.",
+    "H317": "Peut provoquer une allergie cutanée.",
+    "H318": "Provoque de graves lésions des yeux.",
+    "H319": "Provoque une sévère irritation des yeux.",
+    "H330": "Mortel par inhalation.",
+    "H331": "Toxique par inhalation.",
+    "H332": "Nocif par inhalation.",
+    "H334": "Peut provoquer des symptômes allergiques ou d'asthme ou des difficultés respiratoires par inhalation.",
+    "H335": "Peut irriter les voies respiratoires.",
+    "H336": "Peut provoquer somnolence ou vertiges.",
+    "H340": "Peut induire des anomalies génétiques.",
+    "H341": "Susceptible d'induire des anomalies génétiques.",
+    "H350": "Peut provoquer le cancer.",
+    "H351": "Susceptible de provoquer le cancer.",
+    "H360": "Peut nuire à la fertilité ou au fœtus.",
+    "H361": "Susceptible de nuire à la fertilité ou au fœtus.",
+    "H371": "Risque présumé d'effets graves pour les organes.",
+    "H370": "Risque avéré d'effets graves pour les organes.",
+    "H372": "Risque avéré d'effets graves pour les organes à la suite d'expositions répétées ou d'une exposition prolongée.",
+    "H373": "Risque présumé d'effets graves pour les organes à la suite d'expositions répétées ou d'une exposition prolongée.",
+    "H360D": "Peut nuire au fœtus.",
+    "H360F": "Peut nuire à la fertilité.",
+    "H360FD": "Peut nuire à la fertilité. Peut nuire au fœtus.",
+    "H360Fd": "Peut nuire à la fertilité. Susceptible de nuire au fœtus.",
+    "H360Df": "Peut nuire au fœtus. Susceptible de nuire à la fertilité.",
+    "H361d": "Susceptible de nuire au fœtus.",
+    "H361f": "Susceptible de nuire à la fertilité.",
+    "H361fd": "Susceptible de nuire à la fertilité. Susceptible de nuire au fœtus.",
+    "H400": "Très toxique pour les organismes aquatiques.",
+    "H401": "Toxique pour les organismes aquatiques.",
+    "H402": "Nocif pour les organismes aquatiques.",
+    "H413": "Peut être nocif à long terme pour les organismes aquatiques.",
+    "H420": "Nuit à la santé publique et à l'environnement en détruisant l'ozone dans la haute atmosphère.",
+    "H410": "Très toxique pour les organismes aquatiques, entraîne des effets néfastes à long terme.",
+    "H411": "Toxique pour les organismes aquatiques, entraîne des effets néfastes à long terme.",
+    "H412": "Nocif pour les organismes aquatiques, entraîne des effets néfastes à long terme.",
+}
+
+P_TEXTES = {
+    # Généraux et codes isolés (servent à composer les combinaisons)
+    "P102": "Tenir hors de portée des enfants.",
+    "P220": "Tenir à l'écart des vêtements et d'autres matières combustibles.",
+    "P301": "EN CAS D'INGESTION :",
+    "P302": "EN CAS DE CONTACT AVEC LA PEAU :",
+    "P303": "EN CAS DE CONTACT AVEC LA PEAU (ou les cheveux) :",
+    "P304": "EN CAS D'INHALATION :",
+    "P305": "EN CAS DE CONTACT AVEC LES YEUX :",
+    "P321": "Traitement spécifique (voir les instructions complémentaires de premiers secours sur l'étiquette).",
+    "P330": "Rincer la bouche.",
+    "P331": "NE PAS faire vomir.",
+    "P338": "Enlever les lentilles de contact si la victime en porte et si elles peuvent être facilement enlevées. Continuer à rincer.",
+    "P340": "Transporter la personne à l'extérieur et la maintenir dans une position où elle peut confortablement respirer.",
+    "P351": "Rincer avec précaution à l'eau pendant plusieurs minutes.",
+    "P352": "Laver abondamment à l'eau et au savon.",
+    "P353": "Rincer la peau à l'eau/se doucher.",
+    "P361": "Enlever immédiatement les vêtements contaminés.",
+    "P312": "Appeler un CENTRE ANTIPOISON/un médecin en cas de malaise.",
+    # Prévention
+    "P201": "Se procurer les instructions avant utilisation.",
+    "P202": "Ne pas manipuler avant d'avoir lu et compris toutes les précautions de sécurité.",
+    "P210": "Tenir à l'écart de la chaleur, des surfaces chaudes, des étincelles, des flammes nues et de toute autre source d'inflammation. Ne pas fumer.",
+    "P233": "Maintenir le récipient fermé de manière étanche.",
+    "P235": "Tenir au frais.",
+    "P240": "Mise à la terre/liaison équipotentielle du récipient et du matériel de réception.",
+    "P241": "Utiliser du matériel électrique/de ventilation/d'éclairage/antidéflagrant.",
+    "P242": "Ne pas utiliser d'outils produisant des étincelles.",
+    "P243": "Prendre des mesures de précaution contre les décharges d'électricité statique.",
+    "P234": "Conserver uniquement dans l'emballage d'origine.",
+    "P260": "Ne pas respirer les poussières/fumées/gaz/brouillards/vapeurs/aérosols.",
+    "P261": "Éviter de respirer les poussières/fumées/gaz/brouillards/vapeurs/aérosols.",
+    "P264": "Se laver soigneusement après manipulation.",
+    "P270": "Ne pas manger, boire ou fumer en manipulant ce produit.",
+    "P271": "Utiliser seulement en plein air ou dans un endroit bien ventilé.",
+    "P272": "Les vêtements de travail contaminés ne devraient pas sortir du lieu de travail.",
+    "P273": "Éviter le rejet dans l'environnement.",
+    "P281": "Utiliser l'équipement de protection individuel requis.",
+    "P284": "Porter un équipement de protection respiratoire.",
+    "P280": "Porter des gants de protection/des vêtements de protection/un équipement de protection des yeux/du visage.",
+    # Intervention
+    "P301+P312": "EN CAS D'INGESTION : appeler un CENTRE ANTIPOISON/un médecin en cas de malaise.",
+    "P301+P330+P331": "EN CAS D'INGESTION : rincer la bouche. NE PAS faire vomir.",
+    "P302+P352": "EN CAS DE CONTACT AVEC LA PEAU : laver abondamment à l'eau et au savon.",
+    "P303+P361+P353": "EN CAS DE CONTACT AVEC LA PEAU (ou les cheveux) : enlever immédiatement les vêtements contaminés. Rincer la peau à l'eau/se doucher.",
+    "P304+P340": "EN CAS D'INHALATION : transporter la personne à l'extérieur et la maintenir dans une position où elle peut confortablement respirer.",
+    "P305+P351+P338": "EN CAS DE CONTACT AVEC LES YEUX : rincer avec précaution à l'eau pendant plusieurs minutes. Enlever les lentilles de contact si la victime en porte et si elles peuvent être facilement enlevées. Continuer à rincer.",
+    "P311": "Appeler un CENTRE ANTIPOISON/un médecin.",
+    "P314": "Consulter un médecin en cas de malaise.",
+    "P308+P313": "EN CAS d'exposition prouvée ou suspectée : consulter un médecin.",
+    "P332+P313": "En cas d'irritation cutanée : consulter un médecin.",
+    "P362": "Enlever les vêtements contaminés et les laver avant réutilisation.",
+    "P310": "Appeler immédiatement un CENTRE ANTIPOISON/un médecin.",
+    "P337+P313": "Si l'irritation oculaire persiste : consulter un médecin.",
+    "P333+P313": "En cas d'irritation ou d'éruption cutanée : consulter un médecin.",
+    "P363": "Laver les vêtements contaminés avant réutilisation.",
+    "P390": "Absorber toute substance répandue pour éviter qu'elle attaque les matériaux environnants.",
+    "P391": "Recueillir le produit répandu.",
+    # Stockage
+    "P403": "Stocker dans un endroit bien ventilé.",
+    "P404": "Stocker dans un récipient fermé.",
+    "P403+P235": "Stocker dans un endroit bien ventilé. Tenir au frais.",
+    "P403+P233": "Stocker dans un endroit bien ventilé. Maintenir le récipient fermé de manière étanche.",
+    "P405": "Garder sous clef.",
+    # Élimination
+    "P502": "Se référer au fabricant ou au fournisseur pour des informations relatives à la récupération ou au recyclage.",
+    "P501": "Éliminer le contenu/récipient conformément à la réglementation en vigueur.",
+}
+
+
+def texte_h(code):
+    return H_TEXTES.get(code, "")
+
+
+def texte_p(code):
+    """Libellé d'un code P. Les combinaisons absentes du tableau sont composées
+    à partir des codes isolés (ex. P305+P351+P338+P310+P321)."""
+    if code in P_TEXTES:
+        return P_TEXTES[code]
+    parts = code.split("+")
+    if len(parts) > 1 and all(p in P_TEXTES for p in parts):
+        return " ".join(P_TEXTES[p] for p in parts)
+    return ""
