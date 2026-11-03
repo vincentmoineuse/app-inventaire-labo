@@ -39,12 +39,8 @@ with st.form("ajout_form", clear_on_submit=True):
     c1, c2 = st.columns(2)
     with c1:
         nom = st.text_input("Nom de l'article *")
-        if categorie == db.CATEGORIE_CHIMIE:
-            quantite = st.number_input("Quantité *", min_value=0.0, value=1.0, step=0.1, format="%g")
-            unite = st.selectbox("Unité *", db.UNITES_CHIMIE)
-        else:
-            quantite = st.number_input("Quantité *", min_value=0, value=1, step=1)
-            unite = st.text_input("Unité", value="unité(s)", help="ex : unité(s), boîte(s), mètre(s)...")
+        quantite = st.number_input("Quantité *", min_value=0, value=1)
+        unite = st.text_input("Unité", value="unité(s)", help="ex : unité(s), boîte(s), L, mL, kg, g...")
     with c2:
         salle = st.text_input("Salle *", placeholder="ex : Labo Physique 1")
         armoire = st.text_input("Armoire / emplacement", placeholder="ex : Armoire 3, étagère B")
@@ -66,7 +62,7 @@ with st.form("ajout_form", clear_on_submit=True):
 
     notice_upload = st.file_uploader("📄 Notice de l'article (PDF, optionnel)", type=["pdf"])
 
-    submit = st.form_submit_button("✅ Ajouter à l'inventaire", width="stretch")
+    submit = st.form_submit_button("✅ Ajouter à l'inventaire", use_container_width=True)
 
 if submit:
     if not nom or not salle:
@@ -90,7 +86,7 @@ if submit:
                 notice_path = db.upload_document(notice_upload.getvalue(), f"{nom}.pdf", "notices")
 
         db.ajouter_article(
-            nom=nom, categorie=categorie, quantite=(float(quantite) if categorie == db.CATEGORIE_CHIMIE else int(quantite)), unite=unite,
+            nom=nom, categorie=categorie, quantite=int(quantite), unite=unite,
             salle=salle, armoire=armoire, photo_path=photo_path,
             numero_cas=numero_cas, pictogrammes=pictos_str, date_peremption=date_perempt,
             notes=notes or None, fds_path=fds_path, notice_path=notice_path,
