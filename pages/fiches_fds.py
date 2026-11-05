@@ -33,8 +33,24 @@ PICTOS = {
 
 @st.cache_resource
 def get_client():
-    # Remplace par le client déjà utilisé dans ton appli d'inventaire si besoin.
-    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+    def secret(*noms):
+        for n in noms:
+            try:
+                if n in st.secrets:
+                    return st.secrets[n]
+                if "supabase" in st.secrets and n in st.secrets["supabase"]:
+                    return st.secrets["supabase"][n]
+            except Exception:
+                pass
+        return None
+
+    url = secret("supabase_url", "SUPABASE_URL", "url")
+    cle = secret("supabase_key", "SUPABASE_KEY", "key")
+    if not (url and cle):
+        st.error("Identifiants Supabase introuvables dans les secrets de l'appli "
+                 "(attendus : supabase_url et supabase_key).")
+        st.stop()
+    return create_client(url, cle)
 
 
 def pictos_depuis_texte(txt):
