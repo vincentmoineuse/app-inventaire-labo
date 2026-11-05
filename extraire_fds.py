@@ -19,9 +19,12 @@ Usage :
 Variables : SUPABASE_URL, SUPABASE_KEY
 """
 import io
+import logging
 import os
 import re
 import sys
+
+logging.getLogger("pypdf").setLevel(logging.ERROR)
 
 from clp_textes import H_TEXTES, P_TEXTES, texte_h, texte_p
 
@@ -106,16 +109,18 @@ def codes_p(texte):
     return vus
 
 
-def mention(texte):
+def mention(texte, hs=None):
+    """Mention d'avertissement. Lecture stricte : « Mention d'avertissement : Danger » ou un mot
+    isolé sur sa ligne. Sans code H, il n'y a pas de mention (évite les faux « Danger » dus à
+    des phrases comme « mention de danger : néant »)."""
+    if hs is not None and not hs:
+        return ""
     t = texte.lower()
-    m = re.search(r"mention[s]?\s+d['’]avertissement\s*:?\s*(danger|attention)", t)
+    m = re.search(r"mentions?\s+d['’]\s*avertissement\s*:?\s*[-–]?\s*(danger|attention)\b", t)
     if m:
         return m.group(1).upper()
-    if re.search(r"\bdanger\b", t):
-        return "DANGER"
-    if re.search(r"\battention\b", t):
-        return "ATTENTION"
-    return ""
+    m = re.search(r"(?m)^\s*(danger|attention)\s*$", t)
+    return m.group(1).upper() if m else ""
 
 
 def pictos_depuis_h(codes):
@@ -271,7 +276,7 @@ def extraire(source, nom_produit=""):
 
     inconnus = [c for c in hs if c not in H_TEXTES] + [c for c in ps if not texte_p(c)]
     return {
-        "mention": mention(r2),
+        "mention": mention(r2, hs),
         "mentions_h": [{"code": c, "texte": texte_h(c)} for c in hs],
         "mentions_p": [{"code": c, "texte": texte_p(c)} for c in ps],
         "pictos": pictos_depuis_h(hs),
@@ -286,7 +291,11 @@ def extraire(source, nom_produit=""):
         "avertissements": notes_cas
         + (["Codes sans libellé dans clp_textes.py : " + ", ".join(inconnus)] if inconnus else [])
         + ([] if rub.get(2) else ["Rubrique 2 introuvable : codes lus dans tout le document, à vérifier"])
-        + (["Aucun code H trouvé : produit non classé dangereux, ou FDS mal lue (à vérifier sur le PDF)"] if not hs else []),
+        + (["Aucun code H trouvé : produit non classé dangereux, ou FDS mal lue (à vérifier sur le PDF)"] if not hs else [])
+        + (["Mention d'avertissement non trouvée alors que des codes H existent : à compléter à la main"]
+           if hs and not mention(r2) else [])
+        + (["Mention d'avertissement présente mais aucun code H : incohérent, à vérifier sur le PDF"]
+           if mention(r2) and not hs else []),
     }
 
 
@@ -395,6 +404,34 @@ if __name__ == "__main__":
         art = cli.table("articles").select("id,nom,numero_cas,fds_path").eq("id", int(args[1])).single().execute().data
         res = traiter_article(cli, art)
         print(art["nom"], "->", res["mention"], [x["code"] for x in res["mentions_h"]], res["avertissements"])
+    elif args[0] == "--refaire":
+        from datetime import datetime
+        cli = _client()
+        lignes = (cli.table("fds_synthese").select("article_id,created_at,updated_at")
+                  .eq("statut", "brouillon").execute().data)
+        ids, gardees = [], 0
+        for l in lignes:
+            try:
+                dt = (datetime.fromisoformat(l["updated_at"].replace("Z", "+00:00"))
+                      - datetime.fromisoformat(l["created_at"].replace("Z", "+00:00"))).total_seconds()
+            except Exception:
+                dt = 9999
+            if dt < 120:
+                ids.append(l["article_id"])
+            else:
+                gardees += 1
+        print(f"Brouillons à refaire : {len(ids)} | laissés tels quels (modifiés à la main ou validés) : "
+              f"{gardees + 0}")
+        arts = (cli.table("articles").select("id,nom,numero_cas,fds_path")
+                .in_("id", ids).not_.is_("fds_path", "null").order("nom").execute().data) if ids else []
+        for art in arts:
+            try:
+                res = traiter_article(cli, art)
+                print(f"OK  {art['nom'][:44]:<45} {res['mention'] or '-':<9} H={len(res['mentions_h'])} "
+                      f"P={len(res['mentions_p'])} {res['avertissements']}")
+            except Exception as exc:
+                print(f"ERR {art['nom']}: {exc}")
+        print(f"Terminé : {len(arts)} brouillon(s) retraité(s).")
     elif args[0] == "--tous":
         limite = int(args[args.index("--limite") + 1]) if "--limite" in args else 5
         cli = _client()

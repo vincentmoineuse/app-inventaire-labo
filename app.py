@@ -14,6 +14,7 @@ pg = st.navigation([
     st.Page("pages/tp.py", title="TP", icon="🧫"),
     st.Page("pages/commandes.py", title="Commandes", icon="🛒"),
     st.Page("pages/documents.py", title="Documents (FDS & notices)", icon="📄"),
+    st.Page("pages/fiches_fds.py", title="Fiches FDS", icon="🗃️"),
     st.Page("pages/donnees_export.py", title="Données & Export", icon="💾"),
 ])
 pg.run()
