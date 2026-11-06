@@ -46,6 +46,13 @@ with c2:
     else:
         st.success("Aucune péremption proche 👍")
 
+    st.subheader("🛒 Commandes en cours")
+    nb_commandes = len(db.obtenir_commandes(["À commander", "Commandée"]))
+    if nb_commandes:
+        st.markdown(f"🟡 **{nb_commandes}** commande{'s' if nb_commandes > 1 else ''} en cours — voir **🛒 Commandes**")
+    else:
+        st.success("Aucune commande en cours 👍")
+
 st.divider()
 
 session_ouverte = db.obtenir_session_ouverte()
