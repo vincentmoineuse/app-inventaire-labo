@@ -3,6 +3,7 @@ Module de gestion des données pour l'inventaire du laboratoire.
 Stockage : Supabase — Postgres pour les données, Storage pour les photos.
 Nécessite supabase_url et supabase_key dans st.secrets (voir SETUP.md).
 """
+import functools
 import unicodedata
 from datetime import datetime, date
 
@@ -57,6 +58,16 @@ PHOTOS_BUCKET = "photos"
 DOCUMENTS_BUCKET = "documents"
 
 
+def _ecriture(fonction):
+    """Réserve une fonction d'écriture à l'administrateur (même si l'interface oubliait de masquer un bouton)."""
+    @functools.wraps(fonction)
+    def enveloppe(*args, **kwargs):
+        if st.session_state.get("role") != "admin":
+            raise PermissionError("Action réservée à l'administrateur.")
+        return fonction(*args, **kwargs)
+    return enveloppe
+
+
 class ConfigurationManquante(Exception):
     pass
 
@@ -105,6 +116,7 @@ def nom_fichier_sur(texte, extension="jpg"):
     return f"{texte_propre}.{extension}" if texte_propre else f"photo.{extension}"
 
 
+@_ecriture
 def upload_photo(file_bytes, filename, mimetype="image/jpeg"):
     """Envoie une photo dans le bucket Supabase Storage et renvoie son URL publique."""
     filename = nom_fichier_sur(filename.rsplit(".", 1)[0], filename.rsplit(".", 1)[-1] if "." in filename else "jpg")
@@ -116,6 +128,7 @@ def upload_photo(file_bytes, filename, mimetype="image/jpeg"):
 
 # ---------- DOCUMENTS PDF (FDS, notices — Supabase Storage) ----------
 
+@_ecriture
 def upload_document(file_bytes, filename, sous_dossier, mimetype="application/pdf"):
     """Envoie un PDF (FDS ou notice) dans le bucket documents et renvoie son URL publique.
     sous_dossier : 'fds' ou 'notices', pour garder les fichiers organisés dans le bucket."""
@@ -129,6 +142,7 @@ def upload_document(file_bytes, filename, sous_dossier, mimetype="application/pd
 
 # ---------- ARTICLES ----------
 
+@_ecriture
 def ajouter_article(nom, categorie, quantite, unite, salle, armoire, photo_path=None,
                      numero_cas=None, pictogrammes=None, date_peremption=None, notes=None,
                      fds_path=None, notice_path=None):
@@ -146,6 +160,7 @@ def ajouter_article(nom, categorie, quantite, unite, salle, armoire, photo_path=
     return res.data[0]["id"] if res.data else None
 
 
+@_ecriture
 def modifier_article(article_id, **kwargs):
     if not kwargs:
         return
@@ -231,6 +246,7 @@ def _toutes_les_sessions():
     return res.data
 
 
+@_ecriture
 def creer_session(notes=None):
     sb = _get_client()
     row = {"date_debut": datetime.now().isoformat(), "notes": notes}
@@ -239,6 +255,7 @@ def creer_session(notes=None):
     return res.data[0]["id"] if res.data else None
 
 
+@_ecriture
 def cloturer_session(session_id):
     sb = _get_client()
     sb.table("sessions_inventaire").update(
@@ -261,6 +278,7 @@ def obtenir_sessions():
     return sessions
 
 
+@_ecriture
 def pointer_article(session_id, article_id, quantite_avant, quantite_apres):
     sb = _get_client()
     row = {
@@ -328,6 +346,7 @@ def obtenir_tps(discipline=None, niveau=None, recherche=None):
     return resultat
 
 
+@_ecriture
 def ajouter_tp(titre, discipline=None, niveau=None, date_prevue=None, notes=None):
     row = {"titre": titre, "discipline": discipline, "niveau": niveau,
            "date_prevue": date_prevue, "notes": notes, "actif": True}
@@ -336,6 +355,7 @@ def ajouter_tp(titre, discipline=None, niveau=None, date_prevue=None, notes=None
     return res.data[0]["id"] if res.data else None
 
 
+@_ecriture
 def modifier_tp(tp_id, **kwargs):
     if kwargs:
         _get_client().table("tps").update(kwargs).eq("id", tp_id).execute()
@@ -352,6 +372,7 @@ def obtenir_materiel_tp(tp_id):
     return lignes
 
 
+@_ecriture
 def ajouter_materiel_tp(tp_id, quantite, unite=None, article_id=None, libelle=None):
     row = {"tp_id": tp_id, "article_id": article_id, "libelle": libelle,
            "quantite": quantite, "unite": unite}
@@ -359,6 +380,7 @@ def ajouter_materiel_tp(tp_id, quantite, unite=None, article_id=None, libelle=No
     _clear_cache()
 
 
+@_ecriture
 def supprimer_materiel_tp(ligne_id):
     _get_client().table("tp_materiel").delete().eq("id", ligne_id).execute()
     _clear_cache()
@@ -406,6 +428,7 @@ def obtenir_commandes(statuts=None):
     return res
 
 
+@_ecriture
 def creer_commande(titre, fournisseur=None, notes=None):
     row = {"titre": titre, "fournisseur": fournisseur, "notes": notes,
            "statut": "À commander", "actif": True}
@@ -414,6 +437,7 @@ def creer_commande(titre, fournisseur=None, notes=None):
     return res.data[0]["id"] if res.data else None
 
 
+@_ecriture
 def modifier_commande(commande_id, **kwargs):
     if kwargs:
         _get_client().table("commandes").update(kwargs).eq("id", commande_id).execute()
@@ -430,6 +454,7 @@ def obtenir_lignes_commande(commande_id):
     return lignes
 
 
+@_ecriture
 def ajouter_ligne_commande(commande_id, designation, quantite, unite=None, article_id=None,
                             reference_fournisseur=None, prix_unitaire=None):
     row = {"commande_id": commande_id, "article_id": article_id, "designation": designation,
@@ -439,6 +464,7 @@ def ajouter_ligne_commande(commande_id, designation, quantite, unite=None, artic
     _clear_cache()
 
 
+@_ecriture
 def supprimer_ligne_commande(ligne_id):
     _get_client().table("commande_lignes").delete().eq("id", ligne_id).execute()
     _clear_cache()
@@ -450,6 +476,7 @@ def total_commande(commande_id):
                for l in obtenir_lignes_commande(commande_id) if l.get("prix_unitaire") is not None)
 
 
+@_ecriture
 def receptionner_commande(commande_id):
     """Passe la commande à « Reçue » et ajoute au stock les quantités des lignes liées à un article
     (uniquement si l'unité de la ligne est la même que celle de l'article).

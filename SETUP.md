@@ -226,3 +226,26 @@ grant all on all tables in schema public to anon, authenticated, service_role;
 grant all on all sequences in schema public to anon, authenticated, service_role;
 notify pgrst, 'reload schema';
 ```
+
+
+## 7. Accès administrateur et accès en consultation
+
+L'application propose deux accès :
+
+- **Administrateur** (toi) : mot de passe, accès à toutes les pages et à toutes les modifications.
+- **Consultation** (personnes extérieures) : lecture seule de l'inventaire, des commandes (sans les prix),
+  des fiches FDS, des documents et des TP. Ces visiteurs ne voient pas les pages d'ajout, de session
+  d'inventaire ni d'export, et aucune modification n'est possible, même en cherchant à contourner l'interface.
+
+À ajouter dans **Streamlit Cloud → ton app → Settings → Secrets** (à la suite de supabase_url et supabase_key) :
+
+```toml
+mot_de_passe_admin = "choisis-un-mot-de-passe-long"
+code_consultation = "code-a-donner-aux-visiteurs"   # facultatif
+```
+
+- `mot_de_passe_admin` est **obligatoire** : sans lui, personne ne peut se connecter en administrateur.
+- `code_consultation` est facultatif. S'il est absent, toute personne qui connaît le lien peut entrer en
+  consultation d'un clic. S'il est présent, les visiteurs doivent saisir ce code.
+- Après 5 tentatives incorrectes, l'écran de connexion se verrouille jusqu'au rechargement de la page.
+- Le fait de recharger la page ou de laisser le téléphone se mettre en veille peut déconnecter : il suffit de se reconnecter.
