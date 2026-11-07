@@ -14,9 +14,13 @@ import re
 import streamlit as st
 from supabase import create_client
 
+from common import est_admin
+from pictos import afficher_pictogrammes
 from clp_textes import H_TEXTES, P_TEXTES, texte_h, texte_p
 from extraire_fds import extraire, traiter_article
 from fds_synth import fiche_depuis_ligne, generer_pdf
+
+ADMIN = est_admin()
 
 PICTOS = {
     "GHS01": "GHS01 - Explosif",
@@ -73,6 +77,8 @@ def charger_fiche(article_id):
 
 
 def enregistrer(article_id, valeurs, valider=False):
+    if not est_admin():
+        raise PermissionError("Action réservée à l'administrateur.")
     valeurs = dict(valeurs, article_id=article_id,
                    updated_at=datetime.datetime.utcnow().isoformat())
     if valider:
@@ -84,9 +90,48 @@ def enregistrer(article_id, valeurs, valider=False):
     get_client().table("fds_synthese").upsert(valeurs, on_conflict="article_id").execute()
 
 
+def afficher_lecture(choix, fiche):
+    """Affichage en lecture seule d'une fiche validée (accès consultation)."""
+    st.subheader(fiche.get("nom_affichage") or choix["nom"])
+    infos = [x for x in [fiche.get("formule"),
+                         f"CAS {fiche['cas']}" if fiche.get("cas") else None,
+                         fiche.get("concentration")] if x]
+    if infos:
+        st.caption(" • ".join(infos))
+    if fiche.get("mention"):
+        st.markdown(f"### {'🔴' if fiche['mention'] == 'DANGER' else '🟠'} {fiche['mention']}")
+    if fiche.get("pictos"):
+        afficher_pictogrammes(", ".join(fiche["pictos"]), taille=72)
+
+    def liste(titre, elements):
+        if elements:
+            st.markdown(f"**{titre}**")
+            st.markdown("\n".join(f"- {e}" for e in elements))
+
+    liste("Mentions de danger (H)", [f"**{m['code']}** {m['texte']}" for m in fiche.get("mentions_h") or []])
+    liste("Conseils de prudence (P)", [f"**{m['code']}** {m['texte']}" for m in fiche.get("mentions_p") or []])
+    liste("Équipements de protection (EPI)", fiche.get("epi") or [])
+    liste("Premiers secours", [f"**{x['titre']}** : {x['texte']}" for x in fiche.get("premiers_secours") or []])
+    for titre, cle in [("Stockage", "stockage"), ("À ne pas mélanger avec", "incompatibilites"),
+                       ("Déversement", "deversement"), ("Déchets", "dechets")]:
+        if fiche.get(cle):
+            st.markdown(f"**{titre}** : {fiche[cle]}")
+    if choix.get("fds_path"):
+        st.link_button("📄 Ouvrir la FDS officielle du fournisseur", choix["fds_path"])
+    st.caption("La FDS du fournisseur reste la référence.")
+
+
 st.title("Fiches FDS synthétiques")
 
 produits = charger_produits()
+if not ADMIN:
+    # Les visiteurs ne voient que les fiches relues et validées.
+    valides = {f["article_id"] for f in get_client().table("fds_synthese").select("article_id")
+               .eq("statut", "valide").execute().data}
+    produits = [p for p in produits if p["id"] in valides]
+    if not produits:
+        st.info("Aucune fiche validée pour le moment.")
+        st.stop()
 if not produits:
     st.info("Aucun produit chimique actif dans l'inventaire.")
     st.stop()
@@ -94,6 +139,15 @@ if not produits:
 choix = st.selectbox("Produit", produits, format_func=lambda p: p["nom"])
 fiche = charger_fiche(choix["id"]) or {}
 k = f"fds_{choix['id']}"
+
+if not ADMIN:
+    afficher_lecture(choix, fiche)
+    if fiche:
+        pdf_lecture = generer_pdf(fiche_depuis_ligne(fiche))
+        st.download_button("Télécharger la fiche A4 (PDF)", pdf_lecture,
+                           file_name=f"FDS_{re.sub(r'[^A-Za-z0-9]+', '_', fiche.get('nom_affichage') or choix['nom'])}.pdf",
+                           mime="application/pdf")
+    st.stop()
 
 if fiche:
     if fiche["statut"] == "valide":

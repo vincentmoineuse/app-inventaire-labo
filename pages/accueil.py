@@ -3,9 +3,10 @@ import pandas as pd
 from datetime import datetime
 import database as db
 from pictos import afficher_pictogrammes
-from common import verifier_config
+from common import verifier_config, est_admin
 
 verifier_config()
+ADMIN = est_admin()
 
 st.title("🧪 Inventaire du matériel de laboratoire")
 st.caption("Physique • Chimie • SVT • Informatique")
@@ -56,21 +57,32 @@ with c2:
 st.divider()
 
 session_ouverte = db.obtenir_session_ouverte()
-if session_ouverte:
+if session_ouverte and ADMIN:
     st.warning(
         f"📝 Une session d'inventaire est en cours depuis le "
         f"{datetime.fromisoformat(session_ouverte['date_debut']).strftime('%d/%m/%Y %H:%M')}. "
         f"Rends-toi dans **🔍 Session Inventaire** pour la continuer."
     )
 
-st.markdown("""
-### Navigation
-Utilise le menu à gauche :
-- **📋 Consultation** — parcourir, rechercher et filtrer l'inventaire
-- **➕ Ajouter un article** — ajouter un nouvel article (avec photo)
-- **🔍 Session Inventaire** — faire le point sur le matériel existant, salle par salle
-- **🧫 TP** — préparer les travaux pratiques : matériel nécessaire, vérification du stock
-- **🛒 Commandes** — suivre les commandes de matériel et de produits, réception au stock
-- **📄 Documents (FDS & notices)** — consulter et attacher les fiches de sécurité et notices
-- **💾 Données & Export** — accès direct au tableau de bord Supabase, export CSV, historique des sessions
-""")
+st.markdown("### Navigation")
+menu = [
+    "- **📋 Consultation** — parcourir, rechercher et filtrer l'inventaire",
+]
+if ADMIN:
+    menu += [
+        "- **➕ Ajouter un article** — ajouter un nouvel article (avec photo)",
+        "- **🔍 Session Inventaire** — faire le point sur le matériel existant, salle par salle",
+    ]
+menu += [
+    "- **🧫 TP** — " + ("préparer les travaux pratiques : matériel nécessaire, vérification du stock" if ADMIN
+                       else "consulter les travaux pratiques et le matériel nécessaire"),
+    "- **🛒 Commandes** — " + ("suivre les commandes de matériel et de produits, réception au stock" if ADMIN
+                             else "voir les commandes en cours"),
+    "- **📄 Documents (FDS & notices)** — " + ("consulter et attacher les fiches de sécurité et notices" if ADMIN
+                                              else "consulter les fiches de sécurité et notices"),
+]
+menu.append("- **🗃️ Fiches FDS** — " + ("rédiger, valider et imprimer les fiches FDS synthétiques A4" if ADMIN
+                                       else "consulter et télécharger les fiches FDS synthétiques validées"))
+if ADMIN:
+    menu.append("- **💾 Données & Export** — accès direct au tableau de bord Supabase, export CSV, historique des sessions")
+st.markdown("Utilise le menu à gauche :\n" + "\n".join(menu))

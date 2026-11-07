@@ -1,7 +1,7 @@
 import streamlit as st
 import database as db
 from pictos import afficher_pictogrammes
-from common import verifier_config
+from common import verifier_config, est_admin
 
 verifier_config()
 
@@ -62,17 +62,17 @@ else:
                     if a.get("notice_path"):
                         docs[1].link_button("📄 Notice", a["notice_path"], width="stretch")
                 with cols[2]:
-                    st.write(f"Qté : **{a['quantite']} {a['unite'] or ''}**")
+                    st.write(f"Qté : **{db.formater_quantite(a['quantite'])} {a['unite'] or ''}**")
                 with cols[3]:
                     lieu = " / ".join(x for x in [a["salle"], a["armoire"]] if x)
                     st.write(f"📍 {lieu or 'non renseigné'}")
                 with cols[4]:
-                    if st.button("✏️", key=f"edit_{a['id']}", help="Modifier"):
+                    if est_admin() and st.button("✏️", key=f"edit_{a['id']}", help="Modifier"):
                         st.session_state["edit_article_id"] = a["id"]
                 st.divider()
 
 # --- Formulaire d'édition ---
-if "edit_article_id" in st.session_state:
+if est_admin() and "edit_article_id" in st.session_state:
     article = db.obtenir_article(st.session_state["edit_article_id"])
     if article:
         st.subheader(f"✏️ Modifier : {article['nom']}")
@@ -82,8 +82,17 @@ if "edit_article_id" in st.session_state:
                 nom = st.text_input("Nom", value=article["nom"])
                 categorie_e = st.selectbox("Catégorie", db.CATEGORIES,
                                             index=db.CATEGORIES.index(article["categorie"]))
-                quantite = st.number_input("Quantité", min_value=0, value=article["quantite"])
-                unite = st.text_input("Unité", value=article["unite"] or "unité(s)")
+                if article["categorie"] == db.CATEGORIE_CHIMIE:
+                    quantite = st.number_input("Quantité", min_value=0.0, value=float(article["quantite"] or 0),
+                                               step=0.1, format="%g")
+                    unites = list(db.UNITES_CHIMIE)
+                    if article["unite"] and article["unite"] not in unites:
+                        unites.append(article["unite"])
+                    unite = st.selectbox("Unité", unites,
+                                         index=unites.index(article["unite"]) if article["unite"] in unites else 0)
+                else:
+                    quantite = st.number_input("Quantité", min_value=0, value=int(round(float(article["quantite"] or 0))), step=1)
+                    unite = st.text_input("Unité", value=article["unite"] or "unité(s)")
             with c2:
                 salle_e = st.text_input("Salle", value=article["salle"] or "")
                 armoire_e = st.text_input("Armoire / emplacement", value=article["armoire"] or "")
@@ -144,7 +153,7 @@ if "edit_article_id" in st.session_state:
 
         if enregistrer:
             maj = dict(
-                nom=nom, categorie=categorie_e, quantite=int(quantite), unite=unite,
+                nom=nom, categorie=categorie_e, quantite=(float(quantite) if article["categorie"] == db.CATEGORIE_CHIMIE else int(quantite)), unite=unite,
                 salle=salle_e, armoire=armoire_e, notes=notes,
                 numero_cas=numero_cas if categorie_e == db.CATEGORIE_CHIMIE else None,
                 pictogrammes=pictos_str if categorie_e == db.CATEGORIE_CHIMIE else None,

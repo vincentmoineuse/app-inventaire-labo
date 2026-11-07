@@ -2,9 +2,10 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import database as db
-from common import verifier_config
+from common import verifier_config, exiger_admin
 
 verifier_config()
+exiger_admin()
 
 st.title("💾 Données & export")
 
@@ -27,10 +28,10 @@ if supabase_url:
 if project_ref:
     st.link_button("🔗 Ouvrir l'éditeur de tables Supabase",
                     f"https://supabase.com/dashboard/project/{project_ref}/editor",
-                    use_container_width=True)
+                    width="stretch")
     st.link_button("🔗 Ouvrir le stockage des photos (bucket 'photos')",
                     f"https://supabase.com/dashboard/project/{project_ref}/storage/buckets/{db.PHOTOS_BUCKET}",
-                    use_container_width=True)
+                    width="stretch")
 
 st.divider()
 
@@ -46,7 +47,7 @@ if articles:
         data=csv,
         file_name=f"inventaire_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
         mime="text/csv",
-        use_container_width=True,
+        width="stretch",
     )
 else:
     st.info("Aucun article à exporter pour le moment.")

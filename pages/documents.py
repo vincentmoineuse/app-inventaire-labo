@@ -1,13 +1,13 @@
 import streamlit as st
 import database as db
-from common import verifier_config
+from common import verifier_config, est_admin
 
 verifier_config()
+ADMIN = est_admin()
 
 st.title("📄 Documents : FDS & notices")
 st.caption(
-    "Retrouve ici tous les PDF déjà rattachés à un article, et attache facilement une FDS "
-    "ou une notice existante (par exemple depuis ton dossier de FDS) à un article de l'inventaire."
+    "Retrouve ici tous les PDF déjà rattachés à un article (fiches de données de sécurité et notices)."
 )
 
 tous_les_articles = db.obtenir_articles()
@@ -26,28 +26,29 @@ with tab_fds:
             c1, c2 = st.columns([4, 1])
             cas = f" — CAS {a['numero_cas']}" if a.get("numero_cas") else ""
             c1.write(f"**{a['nom']}**{cas}")
-            c2.link_button("📄 Ouvrir", a["fds_path"], use_container_width=True)
+            c2.link_button("📄 Ouvrir", a["fds_path"], width="stretch")
     else:
         st.info("Aucune FDS attachée pour le moment.")
 
-    st.divider()
-    st.subheader(f"Attacher une FDS à un produit chimique ({len(sans_fds)} sans FDS)")
-    if not produits_chimiques:
-        st.info("Aucun produit chimique dans l'inventaire pour le moment.")
-    else:
-        options = sans_fds if sans_fds else produits_chimiques
-        choix = st.selectbox(
-            "Produit chimique", options,
-            format_func=lambda a: f"{a['nom']}" + (f" (CAS {a['numero_cas']})" if a.get("numero_cas") else ""),
-            key="choix_fds",
-        )
-        pdf_fds = st.file_uploader("Fichier PDF de la FDS", type=["pdf"], key="upload_fds_doc")
-        if st.button("📤 Attacher cette FDS", disabled=pdf_fds is None, key="btn_attacher_fds"):
-            with st.spinner("Envoi en cours..."):
-                url = db.upload_document(pdf_fds.getvalue(), f"{choix['nom']}.pdf", "fds")
-                db.modifier_article(choix["id"], fds_path=url)
-            st.success(f"FDS attachée à « {choix['nom']} ».")
-            st.rerun()
+    if ADMIN:
+        st.divider()
+        st.subheader(f"Attacher une FDS à un produit chimique ({len(sans_fds)} sans FDS)")
+        if not produits_chimiques:
+            st.info("Aucun produit chimique dans l'inventaire pour le moment.")
+        else:
+            options = sans_fds if sans_fds else produits_chimiques
+            choix = st.selectbox(
+                "Produit chimique", options,
+                format_func=lambda a: f"{a['nom']}" + (f" (CAS {a['numero_cas']})" if a.get("numero_cas") else ""),
+                key="choix_fds",
+            )
+            pdf_fds = st.file_uploader("Fichier PDF de la FDS", type=["pdf"], key="upload_fds_doc")
+            if st.button("📤 Attacher cette FDS", disabled=pdf_fds is None, key="btn_attacher_fds"):
+                with st.spinner("Envoi en cours..."):
+                    url = db.upload_document(pdf_fds.getvalue(), f"{choix['nom']}.pdf", "fds")
+                    db.modifier_article(choix["id"], fds_path=url)
+                st.success(f"FDS attachée à « {choix['nom']} ».")
+                st.rerun()
 
 # ---------- Onglet Notices ----------
 with tab_notices:
@@ -59,25 +60,26 @@ with tab_notices:
         for a in sorted(avec_notice, key=lambda x: (x["categorie"], x["nom"])):
             c1, c2 = st.columns([4, 1])
             c1.write(f"**{a['nom']}** — {a['categorie']}")
-            c2.link_button("📄 Ouvrir", a["notice_path"], use_container_width=True)
+            c2.link_button("📄 Ouvrir", a["notice_path"], width="stretch")
     else:
         st.info("Aucune notice attachée pour le moment.")
 
-    st.divider()
-    st.subheader(f"Attacher une notice à un article ({len(sans_notice)} sans notice)")
-    if not tous_les_articles:
-        st.info("Aucun article dans l'inventaire pour le moment.")
-    else:
-        options = sans_notice if sans_notice else tous_les_articles
-        choix = st.selectbox(
-            "Article", options,
-            format_func=lambda a: f"{a['nom']} ({a['categorie']})",
-            key="choix_notice",
-        )
-        pdf_notice = st.file_uploader("Fichier PDF de la notice", type=["pdf"], key="upload_notice_doc")
-        if st.button("📤 Attacher cette notice", disabled=pdf_notice is None, key="btn_attacher_notice"):
-            with st.spinner("Envoi en cours..."):
-                url = db.upload_document(pdf_notice.getvalue(), f"{choix['nom']}.pdf", "notices")
-                db.modifier_article(choix["id"], notice_path=url)
-            st.success(f"Notice attachée à « {choix['nom']} ».")
-            st.rerun()
+    if ADMIN:
+        st.divider()
+        st.subheader(f"Attacher une notice à un article ({len(sans_notice)} sans notice)")
+        if not tous_les_articles:
+            st.info("Aucun article dans l'inventaire pour le moment.")
+        else:
+            options = sans_notice if sans_notice else tous_les_articles
+            choix = st.selectbox(
+                "Article", options,
+                format_func=lambda a: f"{a['nom']} ({a['categorie']})",
+                key="choix_notice",
+            )
+            pdf_notice = st.file_uploader("Fichier PDF de la notice", type=["pdf"], key="upload_notice_doc")
+            if st.button("📤 Attacher cette notice", disabled=pdf_notice is None, key="btn_attacher_notice"):
+                with st.spinner("Envoi en cours..."):
+                    url = db.upload_document(pdf_notice.getvalue(), f"{choix['nom']}.pdf", "notices")
+                    db.modifier_article(choix["id"], notice_path=url)
+                st.success(f"Notice attachée à « {choix['nom']} ».")
+                st.rerun()
