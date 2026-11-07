@@ -1,5 +1,6 @@
 """Pictogrammes SGH/CLP dessinés en SVG et affichage HTML pour Streamlit."""
 import base64
+from pathlib import Path
 
 _SYMBOLES = {
     'GHS01': '<circle cx="44" cy="62" r="14"/><rect x="50" y="42" width="5" height="9" transform="rotate(35 52 46)"/>\n<g stroke="#000" stroke-width="3" stroke-linecap="round"><line x1="62" y1="34" x2="62" y2="26"/><line x1="62" y1="34" x2="70" y2="29"/><line x1="62" y1="34" x2="72" y2="36"/><line x1="62" y1="34" x2="55" y2="27"/><line x1="62" y1="34" x2="69" y2="42"/></g>',
@@ -45,6 +46,21 @@ def html_pictogrammes(pictogrammes, taille=48):
     return "".join(imgs)
 
 
+DOSSIER_IMAGES = Path(__file__).resolve().parent / "pictos"
+
+
+def _image_pictogramme(code):
+    """Image officielle du dossier pictos/ (GHS01.png … GHS09.png) si elle existe,
+    sinon le pictogramme dessiné en SVG (secours)."""
+    for extension in ("png", "PNG", "jpg", "jpeg", "svg"):
+        fichier = DOSSIER_IMAGES / f"{code}.{extension}"
+        if fichier.is_file():
+            if extension == "svg":
+                return fichier.read_text(encoding="utf-8")
+            return str(fichier)
+    return svg_pictogramme(code)
+
+
 def codes_pictogrammes(pictogrammes):
     """Extrait la liste des codes GHS0x (sans doublon) d'une chaîne « GHS02 - Inflammable, GHS05 - Corrosif »."""
     codes = []
@@ -61,4 +77,4 @@ def afficher_pictogrammes(pictogrammes, taille=48):
     codes = codes_pictogrammes(pictogrammes)
     if not codes:
         return
-    st.image([svg_pictogramme(c) for c in codes], width=taille)
+    st.image([_image_pictogramme(c) for c in codes], width=taille)
