@@ -4,6 +4,7 @@ Stockage : Supabase — Postgres pour les données, Storage pour les photos.
 Nécessite supabase_url et supabase_key dans st.secrets (voir SETUP.md).
 """
 import functools
+import io
 import unicodedata
 from datetime import datetime, date
 
@@ -116,14 +117,34 @@ def nom_fichier_sur(texte, extension="jpg"):
     return f"{texte_propre}.{extension}" if texte_propre else f"photo.{extension}"
 
 
+def compresser_photo(file_bytes, taille_max=800, qualite=80):
+    """Réduit une photo (côté le plus long : 800 px, JPEG qualité 80) : de ~3 Mo à ~100 Ko.
+    Évite de dépasser le quota de transfert (egress) de Supabase. En cas de souci, renvoie l'original."""
+    try:
+        from PIL import Image, ImageOps
+        image = ImageOps.exif_transpose(Image.open(io.BytesIO(bytes(file_bytes))))
+        image.thumbnail((taille_max, taille_max))
+        if image.mode != "RGB":
+            fond = Image.new("RGB", image.size, "white")
+            fond.paste(image.convert("RGBA"), mask=image.convert("RGBA").split()[-1])
+            image = fond
+        sortie = io.BytesIO()
+        image.save(sortie, "JPEG", quality=qualite, optimize=True, progressive=True)
+        return sortie.getvalue()
+    except Exception:
+        return bytes(file_bytes)
+
+
 @_ecriture
 def upload_photo(file_bytes, filename, mimetype="image/jpeg"):
-    """Envoie une photo dans le bucket Supabase Storage et renvoie son URL publique."""
-    filename = nom_fichier_sur(filename.rsplit(".", 1)[0], filename.rsplit(".", 1)[-1] if "." in filename else "jpg")
+    """Compresse la photo, l'envoie dans le bucket Supabase Storage et renvoie son URL publique.
+    Le nom contient un horodatage unique : le navigateur peut donc garder la photo en cache 1 an."""
+    nom = nom_fichier_sur(filename.rsplit(".", 1)[0], "jpg")
     sb = _get_client()
     bucket = sb.storage.from_(PHOTOS_BUCKET)
-    bucket.upload(filename, bytes(file_bytes), {"content-type": mimetype, "upsert": "true"})
-    return bucket.get_public_url(filename)
+    bucket.upload(nom, compresser_photo(file_bytes),
+                  {"content-type": "image/jpeg", "upsert": "true", "cache-control": "31536000"})
+    return bucket.get_public_url(nom)
 
 
 # ---------- DOCUMENTS PDF (FDS, notices — Supabase Storage) ----------
