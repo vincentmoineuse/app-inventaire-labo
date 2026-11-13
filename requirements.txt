@@ -2,3 +2,7 @@ streamlit>=1.35
 pandas>=2.0
 supabase>=2.10
 pillow>=10.0
+reportlab
+qrcode[pil]
+pypdf
+requests
