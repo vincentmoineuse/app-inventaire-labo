@@ -228,6 +228,49 @@ notify pgrst, 'reload schema';
 ```
 
 
+## 6 bis. Fiches TP normalisées (plateau scientifique)
+
+La rubrique TP produit des **fiches de préparation normalisées** en PDF (module `fiche_tp.py`).
+Les fiches sont créées dans Claude avec le skill « fiche-tp-labo » (à partir d'une photo du cahier
+des professeurs ou d'un document), puis importées dans l'appli sous forme de petit fichier JSON.
+
+- Le PDF n'est **jamais stocké** dans Supabase : il est refabriqué à la demande sur le serveur
+  Streamlit. Une fiche occupe environ 3 Ko en base ; ouvrir une fiche coûte environ 3 Ko d'egress.
+- La quantité d'une ligne de matériel « par poste » est multipliée par le nombre de postes pour
+  la vérification du stock et la fiche.
+- Le fichier `packages.txt` installe la police DejaVu sur Streamlit Cloud (symboles ☐, ⚠, ≈).
+
+Script à exécuter une fois dans **SQL Editor** (il ajoute des colonnes, ne supprime rien) :
+
+```sql
+alter table tps
+  add column if not exists reference text,
+  add column if not exists version integer not null default 1,
+  add column if not exists enseignant text,
+  add column if not exists classe text,
+  add column if not exists seance text,
+  add column if not exists salle text,
+  add column if not exists postes integer not null default 1 check (postes >= 1),
+  add column if not exists duree text,
+  add column if not exists objectif text,
+  add column if not exists date_maj date,
+  add column if not exists fiche jsonb not null default '{}'::jsonb;
+
+create unique index if not exists tps_reference_unique
+  on tps (lower(reference)) where reference is not null and actif;
+
+alter table tp_materiel
+  add column if not exists caracteristiques text,
+  add column if not exists emplacement text not null default 'poste'
+    check (emplacement in ('poste', 'bureau'));
+
+comment on column tps.fiche is 'Contenu libre de la fiche TP normalisée (solutions, préparations, sécurité, remarques, à vérifier, source). Le PDF est régénéré à la demande, jamais stocké.';
+comment on column tp_materiel.quantite is 'Quantité PAR POSTE si emplacement = poste, quantité totale si emplacement = bureau.';
+
+notify pgrst, 'reload schema';
+```
+
+
 ## 7. Accès administrateur et accès en consultation
 
 L'application propose deux accès :

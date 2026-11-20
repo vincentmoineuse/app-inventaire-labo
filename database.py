@@ -336,41 +336,69 @@ def resume_session(session_id):
 
 
 # ---------- TP (travaux pratiques) ----------
+# Un TP = une ligne de « tps » (séance + contenu jsonb « fiche » : solutions, sécurité…)
+# + ses lignes de matériel « tp_materiel » (quantité PAR POSTE si emplacement = 'poste').
+# La fiche PDF normalisée est régénérée à la demande (fiche_tp.py) : jamais stockée dans Supabase.
 
-DISCIPLINES_TP = ["Physique", "Chimie", "SVT", "Autre"]
-NIVEAUX_TP = ["Collège", "Seconde", "Première", "Terminale", "Post-bac / BTS", "Autre"]
+DISCIPLINES_TP = ["Physique", "Chimie", "Physique-chimie", "SVT", "STL", "Autre"]
+NIVEAUX_TP = ["Collège", "Seconde", "Première", "Terminale", "Lycée pro", "Post-bac / BTS", "Autre"]
+EMPLACEMENTS_TP = {"poste": "Par poste", "bureau": "Bureau professeur"}
+
+# Colonnes lues pour la liste : tout sauf le jsonb « fiche », lu seulement à la demande.
+_COLONNES_TPS = ("id,titre,discipline,niveau,date_prevue,notes,date_ajout,actif,reference,version,"
+                 "enseignant,classe,seance,salle,postes,duree,objectif,date_maj")
 
 
-@st.cache_data(ttl=15, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def _tous_les_tps():
-    return _get_client().table("tps").select("*").execute().data
+    return _get_client().table("tps").select(_COLONNES_TPS).execute().data
 
 
-@st.cache_data(ttl=15, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def _tout_le_materiel_tp():
     return _get_client().table("tp_materiel").select("*").execute().data
 
 
+@st.cache_data(ttl=600, show_spinner=False)
+def obtenir_fiche_tp(tp_id):
+    """Contenu jsonb « fiche » d'un seul TP (environ 3 Ko), lu uniquement quand on en a besoin."""
+    res = _get_client().table("tps").select("fiche").eq("id", tp_id).execute().data
+    return (res[0].get("fiche") if res else None) or {}
+
+
 def obtenir_tps(discipline=None, niveau=None, recherche=None):
+    """Filtres souples : « Chimie » retrouve aussi « Physique-chimie », « Terminale » retrouve
+    « Terminale spécialité » ; la recherche porte sur le titre et la référence."""
     resultat = []
     for t in _tous_les_tps():
         if not t.get("actif", True):
             continue
-        if discipline and discipline != "Toutes" and t.get("discipline") != discipline:
+        if discipline and discipline != "Toutes" and discipline.lower() not in str(t.get("discipline") or "").lower():
             continue
-        if niveau and niveau != "Tous" and t.get("niveau") != niveau:
+        if niveau and niveau != "Tous" and niveau.lower() not in str(t.get("niveau") or "").lower():
             continue
-        if recherche and recherche.lower() not in str(t.get("titre", "")).lower():
+        if recherche and recherche.lower() not in f"{t.get('titre') or ''} {t.get('reference') or ''}".lower():
             continue
         resultat.append(t)
-    resultat.sort(key=lambda t: (t.get("discipline") or "", t.get("titre") or ""))
+    resultat.sort(key=lambda t: (t.get("discipline") or "", t.get("reference") or "", t.get("titre") or ""))
     return resultat
 
 
+def trouver_tp_par_reference(reference):
+    if not reference:
+        return None
+    for t in _tous_les_tps():
+        if t.get("actif", True) and (t.get("reference") or "").strip().lower() == str(reference).strip().lower():
+            return t
+    return None
+
+
 @_ecriture
-def ajouter_tp(titre, discipline=None, niveau=None, date_prevue=None, notes=None):
+def ajouter_tp(titre, discipline=None, niveau=None, date_prevue=None, notes=None, **autres):
+    """autres : reference, version, enseignant, classe, seance, salle, postes, duree, objectif, fiche."""
     row = {"titre": titre, "discipline": discipline, "niveau": niveau,
-           "date_prevue": date_prevue, "notes": notes, "actif": True}
+           "date_prevue": date_prevue, "notes": notes, "actif": True,
+           "date_maj": date.today().isoformat(), **autres}
     res = _get_client().table("tps").insert(row).execute()
     _clear_cache()
     return res.data[0]["id"] if res.data else None
@@ -379,6 +407,8 @@ def ajouter_tp(titre, discipline=None, niveau=None, date_prevue=None, notes=None
 @_ecriture
 def modifier_tp(tp_id, **kwargs):
     if kwargs:
+        if "actif" not in kwargs:
+            kwargs["date_maj"] = date.today().isoformat()
         _get_client().table("tps").update(kwargs).eq("id", tp_id).execute()
         _clear_cache()
 
@@ -389,14 +419,16 @@ def supprimer_tp(tp_id):
 
 def obtenir_materiel_tp(tp_id):
     lignes = [l for l in _tout_le_materiel_tp() if str(l["tp_id"]) == str(tp_id)]
-    lignes.sort(key=lambda l: l["id"])
+    lignes.sort(key=lambda l: (l.get("emplacement") == "bureau", l["id"]))
     return lignes
 
 
 @_ecriture
-def ajouter_materiel_tp(tp_id, quantite, unite=None, article_id=None, libelle=None):
+def ajouter_materiel_tp(tp_id, quantite, unite=None, article_id=None, libelle=None,
+                        caracteristiques=None, emplacement="poste"):
     row = {"tp_id": tp_id, "article_id": article_id, "libelle": libelle,
-           "quantite": quantite, "unite": unite}
+           "quantite": quantite, "unite": unite,
+           "caracteristiques": caracteristiques, "emplacement": emplacement}
     _get_client().table("tp_materiel").insert(row).execute()
     _clear_cache()
 
@@ -407,18 +439,48 @@ def supprimer_materiel_tp(ligne_id):
     _clear_cache()
 
 
+@_ecriture
+def importer_fiche_tp(champs, fiche_json, lignes, remplacer_id=None):
+    """Enregistre une fiche importée (JSON du skill Claude, déjà passé dans fiche_tp.preparer_import).
+    remplacer_id : met à jour ce TP (son matériel est remplacé par celui de la fiche) au lieu d'en créer un.
+    Renvoie l'id du TP."""
+    sb = _get_client()
+    row = {**champs, "fiche": fiche_json, "date_maj": date.today().isoformat(), "actif": True}
+    if remplacer_id:
+        sb.table("tps").update(row).eq("id", remplacer_id).execute()
+        sb.table("tp_materiel").delete().eq("tp_id", remplacer_id).execute()
+        tp_id = remplacer_id
+    else:
+        res = sb.table("tps").insert(row).execute()
+        tp_id = res.data[0]["id"]
+    if lignes:
+        sb.table("tp_materiel").insert([
+            {"tp_id": tp_id, "article_id": l["article_id"], "libelle": l["libelle"],
+             "quantite": l["quantite"], "unite": l["unite"],
+             "caracteristiques": l["caracteristiques"], "emplacement": l["emplacement"]}
+            for l in lignes]).execute()
+    _clear_cache()
+    return tp_id
+
+
 def _meme_unite(u1, u2):
     return (u1 or "").strip().lower() == (u2 or "").strip().lower()
 
 
-def disponibilite_ligne(ligne):
-    """Compare le besoin d'une ligne de TP au stock de l'inventaire.
+def besoin_ligne(ligne, postes=1):
+    """Quantité totale nécessaire : quantité × postes pour le matériel par poste."""
+    q = float(ligne.get("quantite") or 0)
+    return q if ligne.get("emplacement") == "bureau" else q * max(int(postes or 1), 1)
+
+
+def disponibilite_ligne(ligne, postes=1):
+    """Compare le besoin total d'une ligne de TP au stock de l'inventaire.
     Renvoie (etat, stock, manque) ; etat ∈ 'ok', 'insuffisant', 'verifier', 'hors_inventaire'."""
     article = obtenir_article(ligne["article_id"]) if ligne.get("article_id") else None
+    besoin = besoin_ligne(ligne, postes)
     if not article or not article.get("actif", True):
-        return "hors_inventaire", None, float(ligne["quantite"] or 0)
+        return "hors_inventaire", None, besoin
     stock = float(article["quantite"] or 0)
-    besoin = float(ligne["quantite"] or 0)
     if not _meme_unite(article.get("unite"), ligne.get("unite")):
         return "verifier", stock, 0.0
     if stock >= besoin:
