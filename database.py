@@ -340,13 +340,17 @@ def resume_session(session_id):
 # + ses lignes de matériel « tp_materiel » (quantité PAR POSTE si emplacement = 'poste').
 # La fiche PDF normalisée est régénérée à la demande (fiche_tp.py) : jamais stockée dans Supabase.
 
-DISCIPLINES_TP = ["Physique", "Chimie", "Physique-chimie", "SVT", "STL", "Autre"]
-NIVEAUX_TP = ["Collège", "Seconde", "Première", "Terminale", "Lycée pro", "Post-bac / BTS", "Autre"]
+# Les TP sont repérés par leur TITRE (unique parmi les TP actifs) et classés par THÈME.
+DISCIPLINES_TP = ["Physique-chimie", "Physique", "Chimie", "SVT", "STL", "Autre"]
+THEMES_TP = ["Électricité", "Chimie", "Mécanique", "Optique", "Thermique", "Pression",
+             "Acoustique (son)", "Biologie / SVT", "Autre"]
+NIVEAUX_TP = ["CAP", "2de bac pro", "1re bac pro", "Tle bac pro", "2de", "1re", "Tle", "BTS", "CPGE", "Autre"]
+POSTES_DEFAUT = 8
 EMPLACEMENTS_TP = {"poste": "Par poste", "bureau": "Bureau professeur"}
 
 # Colonnes lues pour la liste : tout sauf le jsonb « fiche », lu seulement à la demande.
-_COLONNES_TPS = ("id,titre,discipline,niveau,date_prevue,notes,date_ajout,actif,reference,version,"
-                 "enseignant,classe,seance,salle,postes,duree,objectif,date_maj")
+_COLONNES_TPS = ("id,titre,discipline,theme,niveau,notes,date_ajout,actif,version,"
+                 "enseignant,postes,duree,date_maj")
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -366,38 +370,44 @@ def obtenir_fiche_tp(tp_id):
     return (res[0].get("fiche") if res else None) or {}
 
 
-def obtenir_tps(discipline=None, niveau=None, recherche=None):
-    """Filtres souples : « Chimie » retrouve aussi « Physique-chimie », « Terminale » retrouve
-    « Terminale spécialité » ; la recherche porte sur le titre et la référence."""
+def _sans_accents(texte):
+    t = unicodedata.normalize("NFKD", str(texte or "")).encode("ascii", "ignore").decode("ascii")
+    return " ".join(t.lower().split())
+
+
+def obtenir_tps(theme=None, niveau=None, recherche=None):
+    """Filtres souples (« Tle » retrouve « Tle bac pro ») ; la recherche porte sur le titre,
+    sans tenir compte des accents ni des majuscules."""
     resultat = []
     for t in _tous_les_tps():
         if not t.get("actif", True):
             continue
-        if discipline and discipline != "Toutes" and discipline.lower() not in str(t.get("discipline") or "").lower():
+        if theme and theme != "Tous" and (t.get("theme") or "") != theme:
             continue
         if niveau and niveau != "Tous" and niveau.lower() not in str(t.get("niveau") or "").lower():
             continue
-        if recherche and recherche.lower() not in f"{t.get('titre') or ''} {t.get('reference') or ''}".lower():
+        if recherche and _sans_accents(recherche) not in _sans_accents(t.get("titre")):
             continue
         resultat.append(t)
-    resultat.sort(key=lambda t: (t.get("discipline") or "", t.get("reference") or "", t.get("titre") or ""))
+    resultat.sort(key=lambda t: (t.get("theme") or "~", _sans_accents(t.get("titre"))))
     return resultat
 
 
-def trouver_tp_par_reference(reference):
-    if not reference:
+def trouver_tp_par_titre(titre):
+    """TP actif portant ce titre (accents, majuscules et espaces ignorés), sinon None."""
+    if not str(titre or "").strip():
         return None
+    cle = _sans_accents(titre)
     for t in _tous_les_tps():
-        if t.get("actif", True) and (t.get("reference") or "").strip().lower() == str(reference).strip().lower():
+        if t.get("actif", True) and _sans_accents(t.get("titre")) == cle:
             return t
     return None
 
 
 @_ecriture
-def ajouter_tp(titre, discipline=None, niveau=None, date_prevue=None, notes=None, **autres):
-    """autres : reference, version, enseignant, classe, seance, salle, postes, duree, objectif, fiche."""
-    row = {"titre": titre, "discipline": discipline, "niveau": niveau,
-           "date_prevue": date_prevue, "notes": notes, "actif": True,
+def ajouter_tp(titre, discipline=None, niveau=None, notes=None, **autres):
+    """autres : theme, version, enseignant, postes, duree, fiche."""
+    row = {"titre": titre, "discipline": discipline, "niveau": niveau, "notes": notes, "actif": True,
            "date_maj": date.today().isoformat(), **autres}
     res = _get_client().table("tps").insert(row).execute()
     _clear_cache()

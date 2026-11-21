@@ -5,6 +5,9 @@ La fiche est décrite par un dictionnaire (le « JSON de la fiche »), produit p
 « fiche-tp-labo » ou reconstruit depuis la base (tables tps + tp_materiel).
 Le PDF est TOUJOURS régénéré à la demande, en mémoire : il n'est jamais stocké dans Supabase.
 
+Les fiches sont repérées par leur TITRE (unique) : pas de référence, pas de date ni de créneau,
+seulement ce qui reste valable d'une année sur l'autre (le contenu du TP).
+
 Ligne de commande :  python fiche_tp.py fiche.json sortie.pdf
 Depuis l'appli    :  pdf_bytes = generer_pdf(fiche)
 
@@ -141,12 +144,14 @@ def _unite(u):
     return "" if u.lower() in ("", "unité(s)", "unite(s)", "unité", "unités", "u") else " " + u
 
 
+POSTES_DEFAUT = 8   # norme du plateau scientifique
+
+
 def nom_fichier(fiche):
-    """REF_titre-court_vN.pdf"""
+    """titre-du-tp_vN.pdf"""
     titre = normaliser(fiche.get("titre", "fiche"))
-    titre = re.sub(r"[^a-z0-9]+", "-", titre).strip("-")[:40] or "fiche"
-    ref = re.sub(r"[^A-Za-z0-9-]+", "", str(fiche.get("reference") or "TP"))
-    return f"{ref}_{titre}_v{fiche.get('version', 1)}.pdf"
+    titre = re.sub(r"[^a-z0-9]+", "-", titre).strip("-")[:60].strip("-") or "fiche"
+    return f"{titre}_v{fiche.get('version', 1)}.pdf"
 
 
 # ---------------- éléments graphiques ----------------
@@ -225,30 +230,28 @@ def volume_a_preparer(s, postes, marge):
 # ---------------- génération du PDF ----------------
 def construire(d, sortie):
     """d : dictionnaire de la fiche ; sortie : chemin de fichier ou objet fichier (io.BytesIO)."""
-    postes = int(d.get("postes") or 1)
-    ref, version = d.get("reference") or "SANS-REF", d.get("version") or 1
+    postes = int(d.get("postes") or POSTES_DEFAUT)
+    version = d.get("version") or 1
+    titre = d.get("titre") or "TP sans titre"
     story = []
 
     # ---- titre, sous-titre, cartouche ----
-    story.append(Paragraph(rich(d.get("titre") or "TP sans titre"), S["titre"]))
-    sous = " · ".join(x for x in [d.get("discipline"), d.get("niveau"), d.get("sous_titre")] if x)
+    story.append(Paragraph(rich(titre), S["titre"]))
+    sous = " · ".join(x for x in [d.get("theme"), d.get("niveau"), d.get("sous_titre")] if x)
     if sous:
         story.append(Paragraph(rich(sous), S["sous"]))
     story.append(Spacer(1, 3 * mm))
     date_maj = d.get("date_maj") or date.today().strftime("%d/%m/%Y")
-    info = [("Référence", ref), ("Version", f"v{version} du {date_maj}"),
-            ("Enseignant(e)", d.get("enseignant", "")), ("Classe / groupe", d.get("classe", "")),
-            ("Date et créneau", d.get("seance", "")), ("Salle", d.get("salle", "")),
-            ("Nombre de postes", str(postes)), ("Durée", d.get("duree", ""))]
+    info = [("Thème", d.get("theme", "")), ("Niveau", d.get("niveau", "")),
+            ("Enseignant(e)", d.get("enseignant", "")), ("Durée", d.get("duree", "")),
+            ("Nombre de postes", str(postes)), ("Version", f"v{version} du {date_maj}")]
     rows = [[P(f"**{info[i][0]}**"), P(info[i][1] or ""), P(f"**{info[i + 1][0]}**"), P(info[i + 1][1] or "")]
-            for i in range(0, 8, 2)]
+            for i in range(0, len(info), 2)]
     cart = Table(rows, colWidths=[0.2 * LARG, 0.3 * LARG, 0.2 * LARG, 0.3 * LARG])
     cart.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 0.4, FILET), ("BACKGROUND", (0, 0), (0, -1), LIGNE),
                               ("BACKGROUND", (2, 0), (2, -1), LIGNE), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                               ("TOPPADDING", (0, 0), (-1, -1), 2.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 3)]))
     story.append(cart)
-    if d.get("objectif"):
-        story += [Spacer(1, 2.5 * mm), Paragraph(f"<b>Objectif du TP :</b> {rich(d['objectif'])}", S["txt"])]
 
     # ---- matériel par poste ----
     mp = d.get("materiel_poste") or []
@@ -345,12 +348,12 @@ def construire(d, sortie):
         c.setFillColor(BLEU); c.rect(0, h - 17 * mm, w, 17 * mm, fill=1, stroke=0)
         c.setFillColor(colors.white); c.setFont(FB, 12.5); c.drawString(MARGE, h - 9.5 * mm, "FICHE DE PRÉPARATION TP")
         c.setFont(FN, 8.5); c.drawString(MARGE, h - 14 * mm, ETABLISSEMENT)
-        c.setFont(FB, 10); c.drawRightString(w - MARGE, h - 9.5 * mm, str(ref))
-        c.setFont(FN, 8.5); c.drawRightString(w - MARGE, h - 14 * mm, d.get("discipline") or "")
+        c.setFont(FB, 10); c.drawRightString(w - MARGE, h - 11.5 * mm, d.get("discipline") or "")
         c.setFillColor(ROUGE); c.rect(0, h - 18 * mm, w, 1 * mm, fill=1, stroke=0)
         c.setStrokeColor(BLEU); c.setLineWidth(0.6); c.line(MARGE, 12 * mm, w - MARGE, 12 * mm)
         c.setFillColor(GRIS); c.setFont(FN, 7.5)
-        c.drawString(MARGE, 8 * mm, f"{ref} · v{version} · fiche normalisée du plateau scientifique")
+        court = titre if len(titre) <= 70 else titre[:67].rstrip() + "…"
+        c.drawString(MARGE, 8 * mm, f"{court} · v{version} · fiche normalisée du plateau scientifique")
         c.restoreState()
 
     class NumCanvas(Canvas):
@@ -373,7 +376,7 @@ def construire(d, sortie):
             super().save()
 
     doc = BaseDocTemplate(sortie, pagesize=A4, leftMargin=MARGE, rightMargin=MARGE, topMargin=24 * mm,
-                          bottomMargin=17 * mm, title=f"{ref} - {d.get('titre', '')}",
+                          bottomMargin=17 * mm, title=titre,
                           author="Laboratoire - Cité scolaire du Hainaut")
     doc.addPageTemplates([PageTemplate(id="p", onPage=decor, frames=[
         Frame(MARGE, 17 * mm, LARG, A4[1] - 41 * mm, id="f", leftPadding=0, rightPadding=0, topPadding=0,
@@ -389,7 +392,7 @@ def generer_pdf(d):
 
 
 # ---------------- passage base <-> fiche ----------------
-CHAMPS_TP = ["reference", "version", "enseignant", "classe", "seance", "salle", "postes", "duree", "objectif"]
+CHAMPS_TP = ["version", "theme", "enseignant", "postes", "duree"]
 CHAMPS_FICHE = ["sous_titre", "solutions", "marge_solutions", "preparations", "securite", "remarques",
                 "a_verifier", "source"]
 
@@ -401,8 +404,6 @@ def fiche_depuis_tp(tp, lignes, articles_par_id, fiche_json=None):
     for k in CHAMPS_TP:
         if tp.get(k) not in (None, ""):
             d[k] = tp[k]
-    if tp.get("date_prevue"):
-        d["date_prevue"] = str(tp["date_prevue"])[:10]
     if tp.get("date_maj"):
         a, m, j = str(tp["date_maj"])[:10].split("-")
         d["date_maj"] = f"{j}/{m}/{a}"
@@ -441,10 +442,8 @@ def preparer_import(d, articles):
     for k in CHAMPS_TP:
         if d.get(k) not in (None, ""):
             champs[k] = d[k]
-    champs["postes"] = int(d.get("postes") or 1)
+    champs["postes"] = int(d.get("postes") or POSTES_DEFAUT)
     champs["version"] = int(d.get("version") or 1)
-    if d.get("date_prevue"):
-        champs["date_prevue"] = str(d["date_prevue"])[:10]
     fiche_json = {k: d[k] for k in CHAMPS_FICHE if d.get(k) not in (None, "", [], {})}
 
     lignes = []

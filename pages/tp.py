@@ -1,5 +1,4 @@
 import json
-from datetime import datetime
 
 import streamlit as st
 
@@ -13,7 +12,8 @@ ADMIN = est_admin()
 st.title("🧫 Travaux pratiques (TP)")
 st.caption(
     "Prépare tes TP : matériel par poste, solutions, sécurité, fiche de préparation normalisée en PDF, "
-    "vérification du stock de l'inventaire et envoi du manquant dans une commande."
+    "vérification du stock de l'inventaire et envoi du manquant dans une commande. "
+    "Les TP sont repérés par leur titre et classés par thème."
 )
 
 ETATS = {
@@ -24,20 +24,17 @@ ETATS = {
 }
 
 
-def _date(valeur):
-    try:
-        return datetime.strptime(str(valeur)[:10], "%Y-%m-%d").date() if valeur else None
-    except ValueError:
-        return None
-
-
 def _libelle_article(a):
     return f"{a['nom']} — {a['categorie']}"
 
 
 def _options(liste, valeur):
-    """Liste de choix complétée par la valeur actuelle si elle n'y figure pas (ex. « Terminale spécialité »)."""
+    """Liste de choix complétée par la valeur actuelle si elle n'y figure pas."""
     return liste + ([valeur] if valeur and valeur not in liste else [])
+
+
+def _index(liste, valeur, defaut=0):
+    return liste.index(valeur) if valeur in liste else defaut
 
 
 @st.cache_data(max_entries=20, show_spinner=False)
@@ -46,26 +43,26 @@ def _pdf(fiche_texte):
     return fiche_tp.generer_pdf(json.loads(fiche_texte))
 
 
-def _champs_seance(prefixe, tp=None):
-    """Champs de séance communs aux formulaires de création et de modification."""
+def _champs_tp(prefixe, tp=None):
+    """Champs communs aux formulaires de création et de modification (contenu durable du TP uniquement)."""
     tp = tp or {}
+    titre = st.text_input("Titre du TP *", value=tp.get("titre") or "", key=f"{prefixe}_titre",
+                          placeholder="ex : Titrage pH-métrique de l'acide chlorhydrique par la soude")
     c1, c2, c3 = st.columns(3)
-    reference = c1.text_input("Référence", value=tp.get("reference") or "", key=f"{prefixe}_ref",
-                              placeholder="ex : PC-TSPE-007")
-    postes = c2.number_input("Nombre de postes", min_value=1, max_value=60, step=1,
-                             value=int(tp.get("postes") or 1), key=f"{prefixe}_postes")
-    duree = c3.text_input("Durée", value=tp.get("duree") or "", key=f"{prefixe}_duree", placeholder="ex : 2 h")
+    disc_opts = _options(db.DISCIPLINES_TP, tp.get("discipline"))
+    theme_opts = _options(db.THEMES_TP, tp.get("theme"))
+    niv_opts = _options(db.NIVEAUX_TP, tp.get("niveau"))
+    discipline = c1.selectbox("Discipline", disc_opts, index=_index(disc_opts, tp.get("discipline")),
+                              key=f"{prefixe}_disc")
+    theme = c2.selectbox("Thème", theme_opts, index=_index(theme_opts, tp.get("theme")), key=f"{prefixe}_theme")
+    niveau = c3.selectbox("Niveau", niv_opts, index=_index(niv_opts, tp.get("niveau"), 3), key=f"{prefixe}_niv")
     c1, c2, c3 = st.columns(3)
-    enseignant = c1.text_input("Enseignant(e)", value=tp.get("enseignant") or "", key=f"{prefixe}_ens")
-    classe = c2.text_input("Classe / groupe", value=tp.get("classe") or "", key=f"{prefixe}_classe")
-    salle = c3.text_input("Salle", value=tp.get("salle") or "", key=f"{prefixe}_salle")
-    seance = st.text_input("Date et créneau (texte libre)", value=tp.get("seance") or "", key=f"{prefixe}_seance",
-                           placeholder="ex : mardi 24/11, 10 h - 12 h")
-    objectif = st.text_area("Objectif du TP", value=tp.get("objectif") or "", key=f"{prefixe}_obj", height=70)
-    return {"reference": reference.strip() or None, "postes": int(postes), "duree": duree.strip() or None,
-            "enseignant": enseignant.strip() or None, "classe": classe.strip() or None,
-            "salle": salle.strip() or None, "seance": seance.strip() or None,
-            "objectif": objectif.strip() or None}
+    postes = c1.number_input("Nombre de postes", min_value=1, max_value=60, step=1,
+                             value=int(tp.get("postes") or db.POSTES_DEFAUT), key=f"{prefixe}_postes")
+    duree = c2.text_input("Durée", value=tp.get("duree") or "", key=f"{prefixe}_duree", placeholder="ex : 2 h")
+    enseignant = c3.text_input("Enseignant(e)", value=tp.get("enseignant") or "", key=f"{prefixe}_ens")
+    return {"titre": titre.strip(), "discipline": discipline, "theme": theme, "niveau": niveau,
+            "postes": int(postes), "duree": duree.strip() or None, "enseignant": enseignant.strip() or None}
 
 
 onglets = ["📚 Liste des TP"] + (["➕ Nouveau TP", "📥 Importer une fiche"] if ADMIN else [])
@@ -81,23 +78,18 @@ if ADMIN:
         st.caption("Pour une fiche complète (solutions, préparations, sécurité), le plus simple est de la faire "
                    "préparer par Claude puis de l'importer dans l'onglet **Importer une fiche**.")
         with st.form("nouveau_tp", clear_on_submit=True):
-            titre = st.text_input("Titre du TP *", placeholder="ex : Dosage par titrage colorimétrique")
-            c1, c2, c3 = st.columns(3)
-            discipline = c1.selectbox("Discipline", db.DISCIPLINES_TP)
-            niveau = c2.selectbox("Niveau", db.NIVEAUX_TP, index=2)
-            date_prevue = c3.date_input("Date prévue", value=None)
-            seance = _champs_seance("new")
+            champs = _champs_tp("new")
             notes = st.text_area("Notes internes")
             envoyer = st.form_submit_button("✅ Créer le TP", width="stretch")
         if envoyer:
-            if not titre.strip():
+            if not champs["titre"]:
                 st.error("Merci de donner un titre au TP.")
-            elif seance["reference"] and db.trouver_tp_par_reference(seance["reference"]):
-                st.error(f"La référence {seance['reference']} est déjà utilisée par un autre TP.")
+            elif db.trouver_tp_par_titre(champs["titre"]):
+                st.error(f"Un TP s'appelle déjà « {champs['titre']} ». Choisis un autre titre.")
             else:
-                db.ajouter_tp(titre.strip(), discipline, niveau,
-                              date_prevue.isoformat() if date_prevue else None, notes.strip() or None, **seance)
-                st.session_state["tp_cree"] = titre.strip()
+                titre = champs.pop("titre")
+                db.ajouter_tp(titre, notes=notes.strip() or None, **champs)
+                st.session_state["tp_cree"] = titre
                 st.rerun()
 
 # ---------- Importer une fiche (JSON du skill Claude) ----------
@@ -121,8 +113,8 @@ if ADMIN:
             except (json.JSONDecodeError, ValueError, TypeError, AttributeError) as e:
                 st.error(f"Ce contenu n'est pas une fiche valide : {e}")
             else:
-                st.markdown(f"**{champs['titre']}** — {champs.get('reference') or 'sans référence'} · "
-                            f"v{champs['version']} · {champs['postes']} poste(s)")
+                st.markdown(f"**{champs['titre']}** — {champs.get('theme') or 'thème non précisé'} · "
+                            f"{champs.get('niveau') or ''} · v{champs['version']} · {champs['postes']} poste(s)")
                 lies = sum(1 for l in lignes_imp if l["article"])
                 st.caption(f"{len(lignes_imp)} ligne(s) de matériel, dont {lies} reliée(s) à l'inventaire ; "
                            f"{len(fiche_json.get('solutions') or [])} solution(s).")
@@ -132,11 +124,10 @@ if ADMIN:
                       "Inventaire": f"✅ {l['article']['nom']}" if l["article"] else "🔎 hors inventaire"}
                      for l in lignes_imp],
                     hide_index=True, width="stretch")
-                existant = db.trouver_tp_par_reference(champs.get("reference"))
+                existant = db.trouver_tp_par_titre(champs["titre"])
                 if existant:
-                    st.warning(f"La référence {champs['reference']} existe déjà (« {existant['titre']} », "
-                               f"v{existant.get('version') or 1}). L'import **remplacera** ce TP et tout son "
-                               "matériel par le contenu de la fiche.")
+                    st.warning(f"Un TP porte déjà ce titre (v{existant.get('version') or 1}). L'import "
+                               "**remplacera** ce TP et tout son matériel par le contenu de la fiche.")
                 if st.button("🔄 Mettre à jour le TP existant" if existant else "📥 Importer la fiche",
                              type="primary", key="imp_go"):
                     db.importer_fiche_tp(champs, fiche_json, lignes_imp,
@@ -151,10 +142,10 @@ if ADMIN:
 # ---------- Liste ----------
 with tab_liste:
     f1, f2, f3 = st.columns(3)
-    disc = f1.selectbox("Discipline", ["Toutes"] + db.DISCIPLINES_TP, key="f_disc")
+    theme_f = f1.selectbox("Thème", ["Tous"] + db.THEMES_TP, key="f_theme")
     niv = f2.selectbox("Niveau", ["Tous"] + db.NIVEAUX_TP, key="f_niv")
-    rech = f3.text_input("Rechercher (titre ou référence)", key="f_rech")
-    tps = db.obtenir_tps(disc, niv, rech or None)
+    rech = f3.text_input("Rechercher dans les titres", key="f_rech")
+    tps = db.obtenir_tps(theme_f, niv, rech or None)
     st.caption(f"{len(tps)} TP")
 
     articles = db.obtenir_articles()
@@ -165,21 +156,13 @@ with tab_liste:
         st.info("Aucun TP pour le moment. Importe une fiche ou crée un TP dans les autres onglets.")
 
     for tp in tps:
-        postes = int(tp.get("postes") or 1)
-        d = _date(tp.get("date_prevue"))
-        entete = f"**{tp['titre']}** — {tp.get('discipline') or ''} {tp.get('niveau') or ''}"
-        if tp.get("reference"):
-            entete = f"`{tp['reference']}` " + entete
-        if d:
-            entete += f" — {d.strftime('%d/%m/%Y')}"
+        postes = int(tp.get("postes") or db.POSTES_DEFAUT)
+        entete = f"**{tp['titre']}** — " + " · ".join(x for x in (tp.get("theme"), tp.get("niveau")) if x)
         lignes = db.obtenir_materiel_tp(tp["id"])
         with st.expander(f"{entete} ({len(lignes)} ligne(s))"):
             infos = [f"v{tp.get('version') or 1}", f"{postes} poste(s)"]
-            infos += [x for x in (tp.get("classe"), tp.get("seance"), tp.get("salle"), tp.get("enseignant"),
-                                  tp.get("duree")) if x]
+            infos += [x for x in (tp.get("discipline"), tp.get("enseignant"), tp.get("duree")) if x]
             st.caption(" · ".join(infos))
-            if tp.get("objectif"):
-                st.write(f"**Objectif :** {tp['objectif']}")
             if tp.get("notes"):
                 st.caption(tp["notes"])
 
@@ -285,30 +268,22 @@ with tab_liste:
                 # --- modifier / supprimer le TP ---
                 if st.toggle("✏️ Modifier ou supprimer ce TP", key=f"tog_tp_{tp['id']}"):
                     with st.form(f"edit_tp_{tp['id']}"):
-                        t = st.text_input("Titre", value=tp["titre"])
-                        c1, c2, c3, c4 = st.columns(4)
-                        disc_opts = _options(db.DISCIPLINES_TP, tp.get("discipline"))
-                        niv_opts = _options(db.NIVEAUX_TP, tp.get("niveau"))
-                        di = c1.selectbox("Discipline", disc_opts,
-                                          index=disc_opts.index(tp["discipline"]) if tp.get("discipline") in disc_opts else 0)
-                        ni = c2.selectbox("Niveau", niv_opts,
-                                          index=niv_opts.index(tp["niveau"]) if tp.get("niveau") in niv_opts else 0)
-                        da = c3.date_input("Date prévue", value=d)
-                        ve = c4.number_input("Version", min_value=1, step=1, value=int(tp.get("version") or 1))
-                        seance = _champs_seance(f"edit_{tp['id']}", tp)
+                        champs = _champs_tp(f"edit_{tp['id']}", tp)
+                        ve = st.number_input("Version", min_value=1, step=1, value=int(tp.get("version") or 1),
+                                             key=f"edit_{tp['id']}_ver")
                         no = st.text_area("Notes internes", value=tp.get("notes") or "")
                         enreg = st.form_submit_button("💾 Enregistrer")
                     if enreg:
-                        autre = db.trouver_tp_par_reference(seance["reference"])
-                        if autre and autre["id"] != tp["id"]:
-                            st.error(f"La référence {seance['reference']} est déjà utilisée par « {autre['titre']} ».")
+                        autre = db.trouver_tp_par_titre(champs["titre"])
+                        if not champs["titre"]:
+                            st.error("Le titre ne peut pas être vide.")
+                        elif autre and autre["id"] != tp["id"]:
+                            st.error(f"Un autre TP s'appelle déjà « {champs['titre']} ».")
                         else:
-                            db.modifier_tp(tp["id"], titre=t.strip() or tp["titre"], discipline=di, niveau=ni,
-                                           date_prevue=da.isoformat() if da else None, notes=no.strip() or None,
-                                           version=int(ve), **seance)
+                            db.modifier_tp(tp["id"], notes=no.strip() or None, version=int(ve), **champs)
                             st.rerun()
                     st.caption("Solutions, préparations et sécurité se modifient avec Claude : télécharge le JSON, "
-                               "fais-le corriger, puis réimporte-le (même référence = mise à jour).")
+                               "fais-le corriger, puis réimporte-le (même titre = mise à jour).")
                     if st.checkbox("Je confirme vouloir supprimer ce TP", key=f"conf_tp_{tp['id']}"):
                         if st.button("🗑️ Supprimer ce TP", key=f"suppr_tp_{tp['id']}"):
                             db.supprimer_tp(tp["id"])
