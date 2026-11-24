@@ -11,6 +11,14 @@ ADMIN = est_admin()
 st.title("🧪 Inventaire du matériel de laboratoire")
 st.caption("Physique • Chimie • SVT • Informatique")
 
+if ADMIN:
+    filtres_alerte = db.filtres_a_surveiller()
+    if filtres_alerte:
+        n = len(filtres_alerte)
+        details = ", ".join(f"**{f['appareil']}** ({f['statut'].lower()})" for f in filtres_alerte)
+        st.warning(f"🌀 {n} filtre{'s' if n > 1 else ''} à surveiller : {details}.")
+        st.page_link("pages/filtres.py", label="Ouvrir le suivi des filtres", icon="🌀")
+
 stats = db.statistiques()
 
 col1, col2, col3 = st.columns(3)
@@ -84,5 +92,6 @@ menu += [
 menu.append("- **🗃️ Fiches FDS** — " + ("rédiger, valider et imprimer les fiches FDS synthétiques A4" if ADMIN
                                        else "consulter et télécharger les fiches FDS synthétiques validées"))
 if ADMIN:
+    menu.append("- **🌀 Filtres** — suivi des filtres des hottes, armoires filtrantes et caissons (échéances, tests de saturation)")
     menu.append("- **💾 Données & Export** — accès direct au tableau de bord Supabase, export CSV, historique des sessions")
 st.markdown("Utilise le menu à gauche :\n" + "\n".join(menu))

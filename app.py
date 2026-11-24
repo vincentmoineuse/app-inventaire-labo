@@ -26,7 +26,10 @@ pages += [
     st.Page("pages/fiches_fds.py", title="Fiches FDS", icon="🗃️"),
 ]
 if role_actuel() == "admin":
-    pages.append(st.Page("pages/donnees_export.py", title="Données & Export", icon="💾"))
+    pages += [
+        st.Page("pages/filtres.py", title="Filtres", icon="🌀"),
+        st.Page("pages/donnees_export.py", title="Données & Export", icon="💾"),
+    ]
 
 pg = st.navigation(pages)
 

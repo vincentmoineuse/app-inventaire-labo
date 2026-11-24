@@ -13,6 +13,8 @@ modifiable depuis n'importe quel appareil (ordinateur, smartphone, tablette).
   (n° CAS, pictogrammes SGH, date de péremption).
 - **Session d'inventaire** : mode "pointage" pour parcourir le matériel existant salle
   par salle / catégorie par catégorie et mettre à jour les quantités constatées.
+- **Filtres** (administrateur) : suivi des filtres des hottes à filtration, armoires filtrantes
+  et caissons — échéances, tests de saturation, historique, alerte sur l'accueil.
 - **Données & Export** : accès direct au tableau de bord Supabase, export CSV, historique
   des sessions d'inventaire.
 

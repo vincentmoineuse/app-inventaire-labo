@@ -589,3 +589,162 @@ def receptionner_commande(commande_id):
     modifier_commande(commande_id, statut="Reçue")
     _clear_cache()
     return non_ajoutees
+
+
+# ---------- FILTRES (hottes à filtration, armoires filtrantes, caissons) ----------
+# Trafic Supabase minimal : une seule petite requête (≈ 7 lignes) mise en cache 6 h,
+# partagée par la page Filtres et l'alerte de l'accueil, vidée uniquement après une
+# modification des filtres. L'historique n'est lu que lorsqu'on demande à l'afficher.
+
+TYPES_APPAREIL_FILTRE = ["Hotte à filtration", "Armoire filtrante", "Caisson de filtration", "Autre"]
+FIABILITES_REFERENCE = ["Confirmée", "Probable", "À vérifier"]
+RESULTATS_TEST = ["Conforme", "Saturé"]
+STATUTS_FILTRE = ["Saturé", "En retard", "Bientôt", "À renseigner", "OK"]   # du plus urgent au moins urgent
+STATUTS_ALERTE = ("Saturé", "En retard", "Bientôt")
+DELAI_BIENTOT_JOURS = 30
+_TTL_FILTRES = 6 * 3600
+
+
+class TablesFiltresManquantes(Exception):
+    pass
+
+
+def _exiger_admin_lecture():
+    if st.session_state.get("role") != "admin":
+        raise PermissionError("Suivi des filtres réservé à l'administrateur.")
+
+
+def _en_date(valeur):
+    if not valeur:
+        return None
+    if isinstance(valeur, date):
+        return valeur
+    try:
+        return datetime.strptime(str(valeur)[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def ajouter_mois(d, mois):
+    """d + n mois ; le 31/01 + 1 mois donne le 28 (ou 29) février."""
+    import calendar
+    total = d.month - 1 + int(mois)
+    annee, mois_num = d.year + total // 12, total % 12 + 1
+    return date(annee, mois_num, min(d.day, calendar.monthrange(annee, mois_num)[1]))
+
+
+def _vider_cache_filtres():
+    _filtres_bruts.clear()
+    _evenements_filtres_bruts.clear()
+
+
+@st.cache_data(ttl=_TTL_FILTRES, show_spinner=False)
+def _filtres_bruts():
+    try:
+        return _get_client().table("filtres").select("*").eq("actif", True).execute().data
+    except Exception as e:
+        raise TablesFiltresManquantes(str(e))
+
+
+@st.cache_data(ttl=_TTL_FILTRES, show_spinner=False)
+def _evenements_filtres_bruts():
+    try:
+        return (_get_client().table("filtres_evenements").select("*")
+                .order("date_evt", desc=True).order("id", desc=True).execute().data)
+    except Exception as e:
+        raise TablesFiltresManquantes(str(e))
+
+
+def calculer_statut_filtre(f, aujourdhui=None):
+    """Renvoie (prochaine_echeance, statut, jours_restants). Calcul fait en Python, sans requête."""
+    aujourdhui = aujourdhui or date.today()
+    pose = _en_date(f.get("date_pose"))
+    test = _en_date(f.get("dernier_test_date"))
+    if not pose:
+        return None, "À renseigner", None
+    echeance = ajouter_mois(pose, f.get("periodicite_mois") or 12)
+    jours = (echeance - aujourdhui).days
+    if f.get("dernier_test_resultat") == "Saturé" and test and test >= pose:
+        return echeance, "Saturé", jours
+    if jours < 0:
+        return echeance, "En retard", jours
+    if jours <= DELAI_BIENTOT_JOURS:
+        return echeance, "Bientôt", jours
+    return echeance, "OK", jours
+
+
+def obtenir_filtres():
+    """Liste des appareils actifs, enrichie de 'echeance', 'statut' et 'jours_restants'."""
+    _exiger_admin_lecture()
+    res = []
+    for f in _filtres_bruts():
+        f = dict(f)
+        f["echeance"], f["statut"], f["jours_restants"] = calculer_statut_filtre(f)
+        res.append(f)
+    res.sort(key=lambda f: (f.get("ordre") or 999, f["id"]))
+    return res
+
+
+def filtres_a_surveiller():
+    """Pour l'alerte de l'accueil : filtres « Saturé », « En retard » ou « Bientôt ».
+    Renvoie [] si les tables n'existent pas encore (l'accueil ne doit jamais planter)."""
+    try:
+        return [f for f in obtenir_filtres() if f["statut"] in STATUTS_ALERTE]
+    except Exception:
+        return []
+
+
+def obtenir_evenements_filtres(filtre_id=None):
+    _exiger_admin_lecture()
+    evts = _evenements_filtres_bruts()
+    if filtre_id is not None:
+        evts = [e for e in evts if str(e["filtre_id"]) == str(filtre_id)]
+    return evts
+
+
+def _journaliser(filtre_id, type_evt, date_evt, resultat=None, notes=None):
+    _get_client().table("filtres_evenements").insert({
+        "filtre_id": filtre_id, "type_evt": type_evt, "date_evt": str(date_evt),
+        "resultat": resultat, "notes": notes or None,
+    }).execute()
+
+
+@_ecriture
+def enregistrer_remplacement(filtre_id, date_evt, notes=None):
+    """Nouveau filtre posé : met à jour la date de pose, efface le dernier test (il concernait
+    l'ancien filtre) et l'inscrit dans l'historique."""
+    _get_client().table("filtres").update({
+        "date_pose": str(date_evt), "dernier_test_date": None, "dernier_test_resultat": None,
+    }).eq("id", filtre_id).execute()
+    _journaliser(filtre_id, "Remplacement", date_evt, notes=notes)
+    _vider_cache_filtres()
+
+
+@_ecriture
+def enregistrer_test_saturation(filtre_id, date_evt, resultat, notes=None):
+    _get_client().table("filtres").update({
+        "dernier_test_date": str(date_evt), "dernier_test_resultat": resultat,
+    }).eq("id", filtre_id).execute()
+    _journaliser(filtre_id, "Test de saturation", date_evt, resultat=resultat, notes=notes)
+    _vider_cache_filtres()
+
+
+@_ecriture
+def modifier_filtre(filtre_id, **champs):
+    if champs:
+        champs = {k: (str(v) if isinstance(v, date) else v) for k, v in champs.items()}
+        _get_client().table("filtres").update(champs).eq("id", filtre_id).execute()
+        _vider_cache_filtres()
+
+
+@_ecriture
+def ajouter_filtre(appareil, **champs):
+    row = {"appareil": appareil, "actif": True,
+           **{k: (str(v) if isinstance(v, date) else v) for k, v in champs.items()}}
+    _get_client().table("filtres").insert(row).execute()
+    _vider_cache_filtres()
+
+
+def retirer_filtre(filtre_id):
+    """Retrait du suivi (appareil réformé) : la ligne et son historique sont conservés."""
+    modifier_filtre(filtre_id, actif=False)
