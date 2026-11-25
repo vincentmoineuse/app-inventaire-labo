@@ -35,48 +35,51 @@ with c1:
         st.info("Aucun article enregistré pour le moment. Rends-toi dans **➕ Ajouter un article** pour commencer.")
 
 with c2:
-    st.subheader("⚠️ Péremptions proches")
-    if stats["peremption_proche"]:
-        for a in stats["peremption_proche"]:
-            jours = (datetime.strptime(a["date_peremption"], "%Y-%m-%d").date() - datetime.now().date()).days
-            urgence = "🔴" if jours < 0 else ("🟠" if jours <= 14 else "🟡")
-            statut = "**PÉRIMÉ**" if jours < 0 else f"{jours} j restants"
-            st.markdown(f"{urgence} **{a['nom']}** — {a['date_peremption']} ({statut})")
-            if a.get("pictogrammes"):
-                afficher_pictogrammes(a["pictogrammes"], taille=32)
-    else:
-        st.success("Aucune péremption proche 👍")
+    with st.container(border=True):
+        st.subheader("⚠️ Péremptions proches")
+        if stats["peremption_proche"]:
+            for a in stats["peremption_proche"]:
+                jours = (datetime.strptime(a["date_peremption"], "%Y-%m-%d").date() - datetime.now().date()).days
+                urgence = "🔴" if jours < 0 else ("🟠" if jours <= 14 else "🟡")
+                statut = "**PÉRIMÉ**" if jours < 0 else f"{jours} j restants"
+                st.markdown(f"{urgence} **{a['nom']}** — {a['date_peremption']} ({statut})")
+                if a.get("pictogrammes"):
+                    afficher_pictogrammes(a["pictogrammes"], taille=32)
+        else:
+            st.success("Aucune péremption proche 👍")
 
-    st.subheader("🛒 Commandes en cours")
-    nb_commandes = len(db.obtenir_commandes(["À commander", "Commandée"]))
-    if nb_commandes:
-        st.markdown(f"🟡 **{nb_commandes}** commande{'s' if nb_commandes > 1 else ''} en cours — voir **🛒 Commandes**")
-    else:
-        st.success("Aucune commande en cours 👍")
+    with st.container(border=True):
+        st.subheader("🛒 Commandes en cours")
+        nb_commandes = len(db.obtenir_commandes(["À commander", "Commandée"]))
+        if nb_commandes:
+            st.markdown(f"🟡 **{nb_commandes}** commande{'s' if nb_commandes > 1 else ''} en cours — voir **🛒 Commandes**")
+        else:
+            st.success("Aucune commande en cours 👍")
 
     if ADMIN:
-        st.subheader("🌀 Filtres")
-        filtres = db.filtres_pour_accueil()
-        if filtres is None:
-            st.info("Suivi des filtres pas encore activé (script SQL de la section 6 ter de SETUP.md).")
-        else:
-            a_surveiller = sorted((f for f in filtres if f["statut"] in db.STATUTS_ALERTE),
-                                  key=lambda f: (db.STATUTS_FILTRE.index(f["statut"]), f["jours_restants"]))
-            for f in a_surveiller:
-                j = f["jours_restants"]
-                if f["statut"] == "Saturé":
-                    urgence, detail = "🔴", "**SATURÉ** au dernier test — à remplacer"
-                elif f["statut"] == "En retard":
-                    urgence, detail = "🔴", f"**EN RETARD** de {-j} j"
-                else:
-                    urgence, detail = "🟠", f"{j} j restants"
-                st.markdown(f"{urgence} **{f['appareil']}** — échéance {f['echeance']:%d/%m/%Y} ({detail})")
-            if not a_surveiller:
-                st.success("Aucun filtre à remplacer dans les 30 jours 👍")
-            nb_vides = sum(1 for f in filtres if f["statut"] == "À renseigner")
-            if nb_vides:
-                st.markdown(f"⚪ **{nb_vides}** filtre{'s' if nb_vides > 1 else ''} sans date de pose")
-            st.page_link("pages/filtres.py", label="Ouvrir le suivi des filtres", icon="🌀")
+        with st.container(border=True):
+            st.subheader("🌀 Filtres")
+            filtres = db.filtres_pour_accueil()
+            if filtres is None:
+                st.info("Suivi des filtres pas encore activé (script SQL de la section 6 ter de SETUP.md).")
+            else:
+                a_surveiller = sorted((f for f in filtres if f["statut"] in db.STATUTS_ALERTE),
+                                      key=lambda f: (db.STATUTS_FILTRE.index(f["statut"]), f["jours_restants"]))
+                for f in a_surveiller:
+                    j = f["jours_restants"]
+                    if f["statut"] == "Saturé":
+                        urgence, detail = "🔴", "**SATURÉ** au dernier test — à remplacer"
+                    elif f["statut"] == "En retard":
+                        urgence, detail = "🔴", f"**EN RETARD** de {-j} j"
+                    else:
+                        urgence, detail = "🟠", f"{j} j restants"
+                    st.markdown(f"{urgence} **{f['appareil']}** — échéance {f['echeance']:%d/%m/%Y} ({detail})")
+                if not a_surveiller:
+                    st.success("Aucun filtre à remplacer dans les 30 jours 👍")
+                nb_vides = sum(1 for f in filtres if f["statut"] == "À renseigner")
+                if nb_vides:
+                    st.markdown(f"⚪ **{nb_vides}** filtre{'s' if nb_vides > 1 else ''} sans date de pose")
+
 
 st.divider()
 
