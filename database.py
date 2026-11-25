@@ -375,15 +375,40 @@ def _sans_accents(texte):
     return " ".join(t.lower().split())
 
 
-def obtenir_tps(theme=None, niveau=None, recherche=None):
-    """Filtres souples (« Tle » retrouve « Tle bac pro ») ; la recherche porte sur le titre,
-    sans tenir compte des accents ni des majuscules."""
+SANS_ENSEIGNANT = "(non renseigné)"
+
+
+def obtenir_enseignants_tp():
+    """Enseignant(e)s présents dans les TP actifs, tirés des données déjà en cache (aucune requête en plus).
+    Les variantes d'écriture (accents, majuscules, espaces) sont regroupées sous la première forme rencontrée."""
+    noms, sans_nom = {}, False
+    for t in _tous_les_tps():
+        if not t.get("actif", True):
+            continue
+        nom = " ".join(str(t.get("enseignant") or "").split())
+        if nom:
+            noms.setdefault(_sans_accents(nom), nom)
+        else:
+            sans_nom = True
+    liste = sorted(noms.values(), key=_sans_accents)
+    return liste + ([SANS_ENSEIGNANT] if sans_nom else [])
+
+
+def obtenir_tps(theme=None, niveau=None, recherche=None, enseignant=None):
+    """Filtres souples (« Tle » retrouve « Tle bac pro ») ; la recherche porte sur le titre et
+    l'enseignant(e) est comparé sans tenir compte des accents ni des majuscules."""
     resultat = []
     for t in _tous_les_tps():
         if not t.get("actif", True):
             continue
         if theme and theme != "Tous" and (t.get("theme") or "") != theme:
             continue
+        if enseignant and enseignant != "Tous":
+            if enseignant == SANS_ENSEIGNANT:
+                if str(t.get("enseignant") or "").strip():
+                    continue
+            elif _sans_accents(t.get("enseignant")) != _sans_accents(enseignant):
+                continue
         if niveau and niveau != "Tous" and niveau.lower() not in str(t.get("niveau") or "").lower():
             continue
         if recherche and _sans_accents(recherche) not in _sans_accents(t.get("titre")):

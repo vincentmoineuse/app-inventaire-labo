@@ -141,11 +141,12 @@ if ADMIN:
 
 # ---------- Liste ----------
 with tab_liste:
-    f1, f2, f3 = st.columns(3)
+    f1, f2, f3, f4 = st.columns(4)
     theme_f = f1.selectbox("Thème", ["Tous"] + db.THEMES_TP, key="f_theme")
     niv = f2.selectbox("Niveau", ["Tous"] + db.NIVEAUX_TP, key="f_niv")
-    rech = f3.text_input("Rechercher dans les titres", key="f_rech")
-    tps = db.obtenir_tps(theme_f, niv, rech or None)
+    ens = f3.selectbox("Enseignant(e)", ["Tous"] + db.obtenir_enseignants_tp(), key="f_ens")
+    rech = f4.text_input("Rechercher dans les titres", key="f_rech")
+    tps = db.obtenir_tps(theme_f, niv, rech or None, ens)
     st.caption(f"{len(tps)} TP")
 
     articles = db.obtenir_articles()
