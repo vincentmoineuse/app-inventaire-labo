@@ -719,6 +719,15 @@ def filtres_a_surveiller():
         return []
 
 
+def filtres_pour_accueil():
+    """Rappel de l'accueil : tous les filtres avec leur statut, ou None si les tables
+    n'existent pas encore. Même requête en cache que la page Filtres (aucun trafic en plus)."""
+    try:
+        return obtenir_filtres()
+    except Exception:
+        return None
+
+
 def obtenir_evenements_filtres(filtre_id=None):
     _exiger_admin_lecture()
     evts = _evenements_filtres_bruts()

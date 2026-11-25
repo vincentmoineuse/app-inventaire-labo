@@ -11,14 +11,6 @@ ADMIN = est_admin()
 st.title("🧪 Inventaire du matériel de laboratoire")
 st.caption("Physique • Chimie • SVT • Informatique")
 
-if ADMIN:
-    filtres_alerte = db.filtres_a_surveiller()
-    if filtres_alerte:
-        n = len(filtres_alerte)
-        details = ", ".join(f"**{f['appareil']}** ({f['statut'].lower()})" for f in filtres_alerte)
-        st.warning(f"🌀 {n} filtre{'s' if n > 1 else ''} à surveiller : {details}.")
-        st.page_link("pages/filtres.py", label="Ouvrir le suivi des filtres", icon="🌀")
-
 stats = db.statistiques()
 
 col1, col2, col3 = st.columns(3)
@@ -61,6 +53,30 @@ with c2:
         st.markdown(f"🟡 **{nb_commandes}** commande{'s' if nb_commandes > 1 else ''} en cours — voir **🛒 Commandes**")
     else:
         st.success("Aucune commande en cours 👍")
+
+    if ADMIN:
+        st.subheader("🌀 Filtres")
+        filtres = db.filtres_pour_accueil()
+        if filtres is None:
+            st.info("Suivi des filtres pas encore activé (script SQL de la section 6 ter de SETUP.md).")
+        else:
+            a_surveiller = sorted((f for f in filtres if f["statut"] in db.STATUTS_ALERTE),
+                                  key=lambda f: (db.STATUTS_FILTRE.index(f["statut"]), f["jours_restants"]))
+            for f in a_surveiller:
+                j = f["jours_restants"]
+                if f["statut"] == "Saturé":
+                    urgence, detail = "🔴", "**SATURÉ** au dernier test — à remplacer"
+                elif f["statut"] == "En retard":
+                    urgence, detail = "🔴", f"**EN RETARD** de {-j} j"
+                else:
+                    urgence, detail = "🟠", f"{j} j restants"
+                st.markdown(f"{urgence} **{f['appareil']}** — échéance {f['echeance']:%d/%m/%Y} ({detail})")
+            if not a_surveiller:
+                st.success("Aucun filtre à remplacer dans les 30 jours 👍")
+            nb_vides = sum(1 for f in filtres if f["statut"] == "À renseigner")
+            if nb_vides:
+                st.markdown(f"⚪ **{nb_vides}** filtre{'s' if nb_vides > 1 else ''} sans date de pose")
+            st.page_link("pages/filtres.py", label="Ouvrir le suivi des filtres", icon="🌀")
 
 st.divider()
 
