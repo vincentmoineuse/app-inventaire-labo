@@ -80,6 +80,26 @@ with c2:
                 if nb_vides:
                     st.markdown(f"⚪ **{nb_vides}** filtre{'s' if nb_vides > 1 else ''} sans date de pose")
 
+        with st.container(border=True):
+            st.subheader("♻️ Déchets")
+            tickets_dechets = db.enlevements_pour_accueil()
+            if tickets_dechets is None:
+                st.info("Évacuation des déchets pas encore activée (script SQL de la section 6 quater de SETUP.md).")
+            elif not tickets_dechets:
+                st.success("Aucun ticket d'enlèvement ouvert 👍")
+            for e in tickets_dechets or []:
+                j = e["jours_avant"]
+                resume = f"{e['nb_entrees']} entrée{'s' if e['nb_entrees'] > 1 else ''}, {e['nb_contenants']} contenant{'s' if e['nb_contenants'] > 1 else ''}"
+                if j is None:
+                    st.markdown(f"🟡 **{e['intitule']}** — {resume} — date d'enlèvement à fixer")
+                elif j < 0:
+                    st.markdown(f"🔴 **{e['intitule']}** — {resume} — enlèvement prévu le "
+                                f"{db._en_date(e['date_prevue']):%d/%m/%Y} : **à clôturer** ou date à mettre à jour")
+                else:
+                    urgence = "🟠" if j <= 7 else "🟡"
+                    st.markdown(f"{urgence} **{e['intitule']}** — {resume} — enlèvement le "
+                                f"{db._en_date(e['date_prevue']):%d/%m/%Y} (dans {j} j)")
+
 
 st.divider()
 
@@ -112,5 +132,6 @@ menu.append("- **🗃️ Fiches FDS** — " + ("rédiger, valider et imprimer le
                                        else "consulter et télécharger les fiches FDS synthétiques validées"))
 if ADMIN:
     menu.append("- **🌀 Filtres** — suivi des filtres des hottes, armoires filtrantes et caissons (échéances, tests de saturation)")
+    menu.append("- **♻️ Évacuation des déchets** — un ticket par enlèvement, entrées ajoutées au fil de l'eau, bordereau PDF et registre")
     menu.append("- **💾 Données & Export** — accès direct au tableau de bord Supabase, export CSV, historique des sessions")
 st.markdown("Utilise le menu à gauche :\n" + "\n".join(menu))

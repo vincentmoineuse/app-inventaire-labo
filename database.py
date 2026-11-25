@@ -782,3 +782,181 @@ def ajouter_filtre(appareil, **champs):
 def retirer_filtre(filtre_id):
     """Retrait du suivi (appareil réformé) : la ligne et son historique sont conservés."""
     modifier_filtre(filtre_id, actif=False)
+
+
+# ---------- ÉVACUATION DES DÉCHETS (tickets d'enlèvement) ----------
+# Un ticket par enlèvement du prestataire ; on y ajoute des entrées au fil de l'eau
+# (bidons de collecte, verrerie cassée, emballages souillés, produits périmés…).
+# Trafic Supabase minimal : deux petites requêtes (tickets + entrées, texte seul, aucune
+# image) mises en cache 6 h, partagées par la page et l'encart de l'accueil, et vidées
+# uniquement après une modification.
+
+# Catégorie -> (code déchet indicatif, état physique par défaut, pictogrammes suggérés)
+# Codes de la liste européenne des déchets (annexe II de l'article R541-8 du code de
+# l'environnement) ; l'astérisque marque un déchet dangereux. Ils restent modifiables :
+# c'est le code inscrit par le prestataire sur le bordereau (BSDD) qui fait foi.
+CATEGORIES_DECHET = {
+    "Solutions de métaux lourds": ("16 05 06*", "Liquide", "GHS06 - Toxique, GHS09 - Danger pour l'environnement"),
+    "Solvants halogénés": ("14 06 02*", "Liquide", "GHS07 - Nocif / Irritant, GHS08 - Danger pour la santé (CMR...)"),
+    "Solvants non halogénés": ("14 06 03*", "Liquide", "GHS02 - Inflammable"),
+    "Acides": ("16 05 06*", "Liquide", "GHS05 - Corrosif"),
+    "Bases": ("16 05 06*", "Liquide", "GHS05 - Corrosif"),
+    "Autres solutions de laboratoire": ("16 05 06*", "Liquide", ""),
+    "Produits périmés ou inutilisables": ("16 05 06*", "Solide", ""),
+    "Emballages / bidons souillés": ("15 01 10*", "Solide", ""),
+    "Verrerie cassée souillée": ("", "Solide", ""),
+    "Filtres usagés (hottes, armoires)": ("15 02 02*", "Solide", ""),
+    "Autre": ("", "Solide", ""),
+}
+CONTENANTS_DECHET = ["Bidon 5 L", "Bidon 10 L", "Bidon 20 L", "Bidon 30 L", "Flacon d'origine", "Carton",
+                     "Seau", "Fût", "Sac", "Autre"]
+UNITES_DECHET = ["L", "kg", "mL", "g", "unité(s)"]
+ETATS_DECHET = ["Liquide", "Solide", "Pâteux", "Gazeux"]
+STATUTS_ENLEVEMENT = ["Ouvert", "Enlevé"]
+_TTL_DECHETS = 6 * 3600
+
+
+class TablesDechetsManquantes(Exception):
+    pass
+
+
+def _exiger_admin_dechets():
+    if st.session_state.get("role") != "admin":
+        raise PermissionError("Évacuation des déchets réservée à l'administrateur.")
+
+
+def _vider_cache_dechets():
+    _enlevements_bruts.clear()
+    _lignes_dechets_brutes.clear()
+
+
+@st.cache_data(ttl=_TTL_DECHETS, show_spinner=False)
+def _enlevements_bruts():
+    try:
+        return (_get_client().table("dechets_enlevements").select("*").eq("actif", True)
+                .order("date_ouverture", desc=True).order("id", desc=True).execute().data)
+    except Exception as e:
+        raise TablesDechetsManquantes(str(e))
+
+
+@st.cache_data(ttl=_TTL_DECHETS, show_spinner=False)
+def _lignes_dechets_brutes():
+    try:
+        return (_get_client().table("dechets_lignes").select("*")
+                .order("date_ajout").order("id").execute().data)
+    except Exception as e:
+        raise TablesDechetsManquantes(str(e))
+
+
+def obtenir_enlevements():
+    """Tickets d'enlèvement (les plus récents d'abord), enrichis de 'nb_entrees', 'nb_contenants'
+    et 'jours_avant' (jours avant la date d'enlèvement prévue, négatif si dépassée)."""
+    _exiger_admin_dechets()
+    lignes = _lignes_dechets_brutes()
+    res = []
+    for e in _enlevements_bruts():
+        e = dict(e)
+        siennes = [l for l in lignes if str(l["enlevement_id"]) == str(e["id"])]
+        e["nb_entrees"] = len(siennes)
+        e["nb_contenants"] = sum(int(l.get("nb_contenants") or 0) for l in siennes)
+        prevue = _en_date(e.get("date_prevue"))
+        e["jours_avant"] = (prevue - date.today()).days if prevue else None
+        res.append(e)
+    # tickets ouverts en premier, puis du plus récent au plus ancien
+    res.sort(key=lambda e: (e["statut"] != "Ouvert",))
+    return res
+
+
+def obtenir_lignes_dechets(enlevement_id=None):
+    _exiger_admin_dechets()
+    lignes = _lignes_dechets_brutes()
+    if enlevement_id is not None:
+        lignes = [l for l in lignes if str(l["enlevement_id"]) == str(enlevement_id)]
+    return lignes
+
+
+def totaux_dechets(lignes):
+    """{'L': 12.5, 'kg': 3.0, …} — mL et g sont convertis en L et kg."""
+    totaux = {}
+    for l in lignes:
+        q, u = l.get("quantite"), (l.get("unite") or "").strip()
+        if q in (None, ""):
+            continue
+        q = float(q)
+        if u == "mL":
+            q, u = q / 1000, "L"
+        elif u == "g":
+            q, u = q / 1000, "kg"
+        totaux[u] = totaux.get(u, 0) + q
+    return totaux
+
+
+def texte_totaux(totaux):
+    ordre = ["L", "kg", "unité(s)"]
+    cles = sorted(totaux, key=lambda u: ordre.index(u) if u in ordre else 99)
+    return " + ".join(f"{formater_quantite(totaux[u])} {u}" for u in cles) or "—"
+
+
+def enlevements_pour_accueil():
+    """Encart de l'accueil : tickets ouverts, ou None si les tables n'existent pas encore
+    (l'accueil ne doit jamais planter). Même cache que la page : aucun trafic en plus."""
+    try:
+        return [e for e in obtenir_enlevements() if e["statut"] == "Ouvert"]
+    except Exception:
+        return None
+
+
+def _iso(champs):
+    return {k: (str(v) if isinstance(v, date) else v) for k, v in champs.items()}
+
+
+@_ecriture
+def creer_enlevement(intitule, **champs):
+    row = {"intitule": intitule, "statut": "Ouvert", "actif": True,
+           "date_ouverture": str(date.today()), **_iso(champs)}
+    res = _get_client().table("dechets_enlevements").insert(row).execute()
+    _vider_cache_dechets()
+    return res.data[0]["id"] if res.data else None
+
+
+@_ecriture
+def modifier_enlevement(enlevement_id, **champs):
+    if champs:
+        _get_client().table("dechets_enlevements").update(_iso(champs)).eq("id", enlevement_id).execute()
+        _vider_cache_dechets()
+
+
+def cloturer_enlevement(enlevement_id, date_enlevement, prestataire=None, numero_bsd=None):
+    """Déchets enlevés par le prestataire : le ticket passe en lecture seule."""
+    modifier_enlevement(enlevement_id, statut="Enlevé", date_enlevement=date_enlevement,
+                        prestataire=prestataire or None, numero_bsd=numero_bsd or None)
+
+
+def rouvrir_enlevement(enlevement_id):
+    modifier_enlevement(enlevement_id, statut="Ouvert", date_enlevement=None)
+
+
+def supprimer_enlevement(enlevement_id):
+    """Suppression douce (le ticket et ses entrées restent dans la base)."""
+    modifier_enlevement(enlevement_id, actif=False)
+
+
+@_ecriture
+def ajouter_ligne_dechet(enlevement_id, categorie, designation, **champs):
+    row = {"enlevement_id": enlevement_id, "categorie": categorie, "designation": designation,
+           "date_ajout": str(date.today()), **_iso(champs)}
+    _get_client().table("dechets_lignes").insert(row).execute()
+    _vider_cache_dechets()
+
+
+@_ecriture
+def modifier_ligne_dechet(ligne_id, **champs):
+    if champs:
+        _get_client().table("dechets_lignes").update(_iso(champs)).eq("id", ligne_id).execute()
+        _vider_cache_dechets()
+
+
+@_ecriture
+def supprimer_ligne_dechet(ligne_id):
+    _get_client().table("dechets_lignes").delete().eq("id", ligne_id).execute()
+    _vider_cache_dechets()

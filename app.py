@@ -15,7 +15,7 @@ def _recharger_modules_modifies():
         demarrage = os.stat(f"/proc/{os.getpid()}").st_ctime
     except OSError:
         demarrage = None
-    for nom in ("database", "fiche_tp", "pictos", "fds_synth", "common"):
+    for nom in ("database", "fiche_tp", "pictos", "fds_synth", "common", "dechets_pdf"):
         mod = sys.modules.get(nom)
         fichier = getattr(mod, "__file__", None)
         if not fichier:
@@ -63,6 +63,7 @@ pages += [
 if role_actuel() == "admin":
     pages += [
         st.Page("pages/filtres.py", title="Filtres", icon="🌀"),
+        st.Page("pages/dechets.py", title="Évacuation des déchets", icon="♻️"),
         st.Page("pages/donnees_export.py", title="Données & Export", icon="💾"),
     ]
 
