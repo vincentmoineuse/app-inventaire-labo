@@ -69,10 +69,13 @@ if role_actuel() == "admin":
 pg = st.navigation(pages)
 
 with st.sidebar:
+    st.markdown("**Laboratoire de Sciences Physiques et de SVT du lycée du Hainaut**")
     st.caption("🔑 Connecté : administrateur" if role_actuel() == "admin" else "👀 Mode consultation (lecture seule)")
     if st.button("Se déconnecter", width="stretch"):
         for cle in ("role", "essais_echoues"):
             st.session_state.pop(cle, None)
         st.rerun()
+    st.divider()
+    st.caption("Créé et développé par Vincent Moineuse, Technicien de Laboratoire")
 
 pg.run()
